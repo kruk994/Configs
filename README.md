@@ -4,6 +4,20 @@ Cross-device dotfiles for **Omarchy** (MacBook Pro), **macOS** (MacBook Air M4)
 and **42 Warsaw Ubuntu** lab machines, managed with
 [chezmoi](https://chezmoi.io).
 
+## Part of ARK
+
+This repo is **layer 2 of ARK**, the two-layer system that reproduces the setup
+on a new machine:
+
+| Layer | Where | Scope |
+|---|---|---|
+| 1 | `~/git/omarchy_ARK/reapply.sh` | Omarchy + MacBook hardware: drivers, DKMS, keyd, Hyprland, packages, system files. Needs sudo, not portable. |
+| 2 | this repo | Portable dotfiles rendered into `$HOME` on all three machines. No sudo. |
+
+Which layer does a change belong in? Ask whether it would make sense on the M4
+Air or a 42 lab machine — yes → here, no → `reapply.sh`. Anything Omarchy- or
+hardware-specific stays out of this repo.
+
 The design principle is *Omarchy defaults first*: every machine runs the stock
 Omarchy/LazyVim base, and this repo adds a thin 42-school overlay on top.
 
