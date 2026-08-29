@@ -1,16 +1,13 @@
--- LazyVim's official C/C++ language extra: clangd (real syntax and semantic
--- errors, completion, go-to-definition, hover) plus clang-format.
+-- Machine-specific tuning for the clangd extra.
 --
--- Imported as a plugin spec rather than added to lazyvim.json because LazyVim
--- writes to that file itself (news checksums); managing it from chezmoi would
--- mean fighting it on every update. The two routes are equivalent.
+-- The extra itself is imported in lua/config/lazy.lua, NOT here: LazyVim
+-- requires extras to be imported between `lazyvim.plugins` and your own
+-- plugins, and warns at startup if that order is broken.
 --
--- clang-format is intentionally NEVER allowed to run on C buffers: it does not
+-- clang-format is intentionally never allowed to run on C buffers: it does not
 -- produce Norm-compliant output. lua/config/autocmds.lua sets
 -- `vim.b.autoformat = false` for c/cpp, which is what keeps conform.nvim off.
 return {
-  { import = "lazyvim.plugins.extras.lang.clangd" },
-
   {
     "neovim/nvim-lspconfig",
     opts = {

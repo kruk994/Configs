@@ -116,3 +116,27 @@ The base is the untouched Omarchy LazyVim starter. This repo adds:
   timeout is what stops that from freezing the editor.
 
 Commands: `:Norm` `:NormOn` `:NormOff` `:NormLimit <n>` `:NormDebug`.
+
+### After updating plugins, run `:TSUpdate`
+
+`:Lazy sync` updates the nvim-treesitter **plugin**, which refreshes the query
+files in `~/.local/share/nvim/site/queries/` — but it does **not** rebuild the
+compiled parsers in `~/.local/share/nvim/site/parser/`. When the new queries
+reference a grammar node the old parser lacks, you get
+
+```
+query.lua:374: Query error at 113:4. Invalid node type "tab"
+```
+
+which breaks noice's cmdline highlighting: the command line stops appearing as
+a popup and falls back to the bottom of the screen with garbled rendering.
+
+Fix, and the habit to keep: **run `:TSUpdate` after any treesitter plugin
+update.** To check for the problem:
+
+```vim
+:lua print(pcall(vim.treesitter.query.get, "vim", "highlights"))
+```
+
+(`html_tags`, `ecma` and `jsx` always report "no parser" — they are query-only
+pseudo-languages, not a fault.)

@@ -5,7 +5,9 @@
 -- Ships with the Omarchy Neovim config; only present on this machine.
 require("config.remote_clipboard").setup()
 {{ end }}
-vim.opt.relativenumber = false
+-- Relative line numbers (LazyVim's default; the Omarchy starter turns them
+-- off). Kept on: they are what make 5j / 12dd counts obvious at a glance.
+vim.opt.relativenumber = true
 
 -- ── PATH ────────────────────────────────────────────────────────────────────
 -- Neovim launches external tools (norminette, rg, fd) through /bin/sh, which
