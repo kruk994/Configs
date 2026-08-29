@@ -1,0 +1,45 @@
+# ══════════════════════════════════════════════════════════════════════════
+#  Git identity ONLY.
+#
+#  Omarchy's own git defaults (aliases, pull.rebase, diff.algorithm, rerere,
+#  ...) live in ~/.config/git/config and are deliberately NOT managed here.
+#  Git reads BOTH files -- ~/.config/git/config first, then this one -- so
+#  nothing Omarchy sets is lost or overridden. Verified with
+#  `git config --list --show-origin`.
+#
+#  CAREFUL: because this file exists, `git config --global ...` now writes
+#  HERE, not to ~/.config/git/config. That means a manual `git config --global`
+#  edit will be silently reverted by the next `chezmoi apply`. Either edit
+#  dot_gitconfig.tmpl in ~/git/configs, or run `chezmoi re-add ~/.gitconfig`
+#  after changing it by hand.
+# ══════════════════════════════════════════════════════════════════════════
+
+[user]
+{{- if eq .machine "42" }}
+	# On a school machine everything is coursework, so the 42 identity is the
+	# default rather than the exception.
+	name = {{ .user42 }}
+	email = {{ .mail42 }}
+{{- else }}
+	name = {{ .gitName }}
+	email = {{ .gitMail }}
+{{- end }}
+
+# Refuse to invent an identity from the hostname if the above ever goes
+# missing -- a wrong author on a 42 commit is worse than a loud error.
+	useConfigOnly = true
+
+{{ if ne .machine "42" -}}
+# ── 42 work uses the school identity ────────────────────────────────────────
+# Matched two independent ways, so a repo qualifies if EITHER is true:
+#
+#   1. by location -- anything under ~/git/42*/  (matches ~/git/42_CC,
+#      ~/git/42/..., ~/git/42_piscine, ...). The trailing slash matters: it
+#      makes the pattern match the directory and everything inside it.
+#   2. by remote -- any repo with a vogsphere remote, wherever it sits on disk.
+#      This catches evaluation clones made outside ~/git.
+[includeIf "gitdir:~/git/42*/"]
+	path = ~/.config/git/42.inc
+[includeIf "hasconfig:remote.*.url:**vogsphere**"]
+	path = ~/.config/git/42.inc
+{{- end }}

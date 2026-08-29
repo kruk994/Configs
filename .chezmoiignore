@@ -1,0 +1,30 @@
+# ── Repo-only entries (must never be applied to $HOME) ──────────────────────
+archive
+docs
+README.md
+
+# ── Omarchy-owned Neovim files ─────────────────────────────────────────────
+# chezmoi only ever writes files that are in its source state, so none of these
+# are at risk today. This block is belt-and-braces: if any of them were ever
+# added to the source state by accident, they still would not be applied.
+#
+# The single rule that actually protects them is that NO directory under
+# dot_config/nvim carries the `exact_` prefix -- `exact_` is the only thing
+# that makes chezmoi delete unmanaged files in a directory it manages.
+#
+# theme.lua in particular is a SYMLINK into ~/.local/state/omarchy/current/theme/
+# and is how Omarchy hot-swaps the Neovim colorscheme.
+{{ if eq .machine "omarchy" -}}
+.config/nvim/lua/plugins/theme.lua
+.config/nvim/lua/plugins/all-themes.lua
+.config/nvim/lua/plugins/disable-news-alert.lua
+.config/nvim/lua/plugins/snacks-animated-scrolling-off.lua
+.config/nvim/lua/plugins/omarchy-theme-hotreload.lua
+.config/nvim/lua/config/remote_clipboard.lua
+.config/nvim/plugin/after/transparency.lua
+.config/nvim/lua/plugins/colorscheme.lua
+{{ end -}}
+
+# LazyVim writes to these itself (news checksums, plugin pins). Never manage them.
+.config/nvim/lazyvim.json
+.config/nvim/lazy-lock.json

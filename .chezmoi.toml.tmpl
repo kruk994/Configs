@@ -1,0 +1,50 @@
+{{/*
+   Per-machine configuration, evaluated once by `chezmoi init`.
+
+   `machine` classifies the host so templates elsewhere can branch:
+     omarchy | macos | 42 | generic
+
+   `user42` / `mail42` hold the 42 identity. They are deliberately kept
+   separate from the system $USER: the 42 login is the same everywhere, but the
+   system username differs per machine. The previous Mac .zshrc solved this by
+   doing `export USER='jnandzik'`, which overrode the system user process-wide.
+
+   The prompts are skipped when there is no TTY (CI, a script, an agent), so
+   `chezmoi init` never hangs. Values can also be supplied up front with:
+     chezmoi init --promptString "42 login=<login>" --promptString "42 email=<mail>"
+*/}}
+{{- $machine := "generic" -}}
+{{- if eq .chezmoi.os "darwin" -}}
+{{-   $machine = "macos" -}}
+{{- else if stat "/usr/share/omarchy" -}}
+{{-   $machine = "omarchy" -}}
+{{- else if stat "/sgoinfre" -}}
+{{-   $machine = "42" -}}
+{{- end -}}
+
+{{- $user42 := "jnandzik" -}}
+{{- $mail42 := "jnandzik@student.42warsaw.pl" -}}
+{{- $gitName := "kruk994" -}}
+{{- $gitMail := "kruk994@gmail.com" -}}
+{{- if stdinIsATTY -}}
+{{-   $user42 = promptStringOnce . "user42" "42 login" $user42 -}}
+{{-   $mail42 = promptStringOnce . "mail42" "42 email" $mail42 -}}
+{{-   $gitName = promptStringOnce . "gitName" "personal git name" $gitName -}}
+{{-   $gitMail = promptStringOnce . "gitMail" "personal git email" $gitMail -}}
+{{- else -}}
+{{-   if hasKey . "user42" }}{{ $user42 = .user42 }}{{ end -}}
+{{-   if hasKey . "mail42" }}{{ $mail42 = .mail42 }}{{ end -}}
+{{-   if hasKey . "gitName" }}{{ $gitName = .gitName }}{{ end -}}
+{{-   if hasKey . "gitMail" }}{{ $gitMail = .gitMail }}{{ end -}}
+{{- end -}}
+
+# The repo is the chezmoi source. Without this, chezmoi falls back to
+# ~/.local/share/chezmoi and reports "no such file or directory".
+sourceDir = {{ (joinPath .chezmoi.homeDir "git" "configs") | quote }}
+
+[data]
+    machine = {{ $machine | quote }}
+    user42 = {{ $user42 | quote }}
+    mail42 = {{ $mail42 | quote }}
+    gitName = {{ $gitName | quote }}
+    gitMail = {{ $gitMail | quote }}

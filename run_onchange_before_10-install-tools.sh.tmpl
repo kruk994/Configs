@@ -1,0 +1,78 @@
+#!/bin/sh
+# Bootstrap the tools the config depends on. Idempotent and sudo-free:
+# the 42 lab machines give you no root.
+#
+# chezmoi re-runs this only when its contents change.
+# machine = {{ .machine }}
+set -eu
+
+log() { printf '  \033[36m::\033[0m %s\n' "$1"; }
+
+# ── TPM (tmux plugin manager) ───────────────────────────────────────────────
+TPM="$HOME/.config/tmux/plugins/tpm"
+if [ ! -d "$TPM" ]; then
+    log "cloning tpm into ~/.config/tmux/plugins/tpm"
+    git clone -q --depth 1 https://github.com/tmux-plugins/tpm "$TPM"
+fi
+
+# ── norminette ──────────────────────────────────────────────────────────────
+# Installed into a self-contained venv rather than with `pip --user`. Modern
+# Arch and Ubuntu mark the system Python as externally managed (PEP 668), so
+# `pip --user` fails outright; a venv sidesteps that and still needs no root.
+install_norminette() {
+    if command -v pipx >/dev/null 2>&1; then
+        pipx install norminette && return 0
+    fi
+    venv="$HOME/.local/share/norminette-venv"
+    python3 -m venv "$venv" || return 1
+    "$venv/bin/pip" install --quiet --upgrade pip norminette || return 1
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "$venv/bin/norminette" "$HOME/.local/bin/norminette"
+}
+
+if ! command -v norminette >/dev/null 2>&1; then
+    if command -v python3 >/dev/null 2>&1; then
+        log "installing norminette"
+        # Guarded by `if` so a failure warns instead of aborting `chezmoi apply`.
+        if install_norminette; then
+            log "norminette ready: $("$HOME/.local/bin/norminette" --version 2>/dev/null || echo installed)"
+        else
+            printf '  !! norminette install failed -- install it manually\n' >&2
+        fi
+    else
+        printf '  !! no python3 found; install norminette manually\n' >&2
+    fi
+fi
+
+{{ if eq .machine "42" -}}
+# ── Neovim (42 Ubuntu only) ─────────────────────────────────────────────────
+# LazyVim needs Neovim >= 0.11; the Ubuntu package is older. Install the
+# official release tarball into ~/.local, which needs no root.
+need_nvim=1
+if command -v nvim >/dev/null 2>&1; then
+    v=$(nvim --version | head -1 | sed 's/^NVIM v//')
+    major=${v%%.*}; rest=${v#*.}; minor=${rest%%.*}
+    if [ "$major" -gt 0 ] || [ "$minor" -ge 11 ]; then
+        need_nvim=0
+    fi
+fi
+if [ "$need_nvim" -eq 1 ]; then
+    log "installing Neovim into ~/.local (Ubuntu package is too old for LazyVim)"
+    tmp=$(mktemp -d)
+    url=https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
+    curl -fsSL "$url" -o "$tmp/nvim.tar.gz"
+    tar -xzf "$tmp/nvim.tar.gz" -C "$tmp"
+    mkdir -p "$HOME/.local"
+    cp -r "$tmp"/nvim-linux-x86_64/* "$HOME/.local/"
+    rm -rf "$tmp"
+    log "Neovim $("$HOME/.local/bin/nvim" --version | head -1) installed"
+fi
+
+# The 42 home quota is small and LazyVim's plugin data plus Mason's clangd runs
+# to roughly 300-400 MB. If that becomes a problem, point XDG_DATA_HOME at
+# goinfre:  export XDG_DATA_HOME="$HOME/goinfre/.local/share"
+if [ -d "$HOME/goinfre" ]; then
+    used=$(du -sm "$HOME/.local/share/nvim" 2>/dev/null | cut -f1 || echo 0)
+    [ "${used:-0}" -gt 300 ] && log "~/.local/share/nvim is ${used}MB -- consider XDG_DATA_HOME in goinfre"
+fi
+{{ end -}}

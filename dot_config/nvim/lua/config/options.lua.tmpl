@@ -1,0 +1,23 @@
+-- Options are automatically loaded before lazy.nvim startup.
+-- Defaults: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/options.lua
+{{ if eq .machine "omarchy" }}
+-- Omarchy's OSC 52 / wl-copy clipboard bridge for tmux, SSH and herdr sessions.
+-- Ships with the Omarchy Neovim config; only present on this machine.
+require("config.remote_clipboard").setup()
+{{ end }}
+vim.opt.relativenumber = false
+
+-- ── PATH ────────────────────────────────────────────────────────────────────
+-- Neovim launches external tools (norminette, rg, fd) through /bin/sh, which
+-- does NOT read the login shell rc. When nvim starts from a launcher or a
+-- different shell, ~/.local/bin can be missing from PATH and those tools
+-- silently do nothing. norminette is installed there by pipx on all three
+-- machines, so prepend it here.
+local local_bin = vim.fn.expand("~/.local/bin")
+if vim.fn.isdirectory(local_bin) == 1 and not string.find(vim.env.PATH or "", local_bin, 1, true) then
+  vim.env.PATH = local_bin .. ":" .. (vim.env.PATH or "")
+end
+
+-- Indentation for C is NOT set here on purpose. LazyVim's 2-space default
+-- stays in force globally; the 42 Norm's tabs are applied per-buffer to
+-- c/cpp only, in lua/config/autocmds.lua.

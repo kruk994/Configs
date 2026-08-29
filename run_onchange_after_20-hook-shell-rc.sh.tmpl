@@ -1,0 +1,25 @@
+#!/bin/sh
+# Hook the shared 42 shell fragment into the interactive shell rc.
+#
+# The rc files themselves are deliberately NOT managed by chezmoi: on Omarchy
+# ~/.bashrc sources env-bootstrap and $OMARCHY_PATH/default/bash/rc, which
+# `omarchy update` may change, and it also holds the user's own yazi wrapper.
+# Appending one guarded line leaves all of that alone.
+#
+# machine = {{ .machine }}
+set -eu
+
+LINE='[ -f "$HOME/.config/shell/42.sh" ] && . "$HOME/.config/shell/42.sh"'
+MARK='.config/shell/42.sh'
+
+hook() {
+    rc="$1"
+    [ -f "$rc" ] || return 0
+    if ! grep -qF "$MARK" "$rc"; then
+        printf '\n# 42 shell fragment (managed by chezmoi)\n%s\n' "$LINE" >> "$rc"
+        printf '  \033[36m::\033[0m hooked 42.sh into %s\n' "$rc"
+    fi
+}
+
+hook "$HOME/.bashrc"
+hook "$HOME/.zshrc"

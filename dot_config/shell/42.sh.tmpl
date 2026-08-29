@@ -1,0 +1,40 @@
+# shellcheck shell=sh
+# ── 42 shell fragment ───────────────────────────────────────────────────────
+# POSIX only: sourced from ~/.bashrc (Omarchy, 42 Ubuntu) and ~/.zshrc (macOS).
+# Managed by chezmoi -- edit dot_config/shell/42.sh.tmpl in ~/git/configs.
+
+# The 42 identity. Deliberately NOT `export USER=...`: the previous Mac .zshrc
+# overrode the system $USER process-wide, which affects every program started
+# from the shell. stdheader.vim and 42-header.nvim read USER42/MAIL42.
+export USER42={{ .user42 | quote }}
+export MAIL42={{ .mail42 | quote }}
+
+# norminette and a locally installed nvim live here on all three machines.
+case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) PATH="$HOME/.local/bin:$PATH"; export PATH ;;
+esac
+
+# ── Compiling at 42 ─────────────────────────────────────────────────────────
+alias cc='cc -Wall -Wextra -Werror'
+alias com='cc -o code.out'
+alias comf='cc -Wall -Wextra -Werror -o code.out'
+alias coma='cc -o code.out *.c'
+alias comfa='cc -Wall -Wextra -Werror -o code.out *.c'
+alias norm='norminette'
+
+# ── Everyday ────────────────────────────────────────────────────────────────
+alias ll='ls -lA'
+alias cl='clear'
+
+# mkdir + cd in one step.
+mkcd() {
+    mkdir -p -- "$1" && cd -P -- "$1" || return
+}
+
+# Download a 42 subject PDF (cached) and read it as text. Example:
+#   subject https://cdn.intra.42.fr/pdf/pdf/96987/en.norm.pdf
+subject() {
+    wget -NP "$HOME/.cache" -nv -- "$1" &&
+        pdftotext -nopgbrk -layout -- "$HOME/.cache/${1##*/}" - | uniq | less
+}

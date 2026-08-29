@@ -1,0 +1,43 @@
+-- The 42 standard header. Mandatory on every source file at school.
+return {
+  "Diogo-ss/42-header.nvim",
+  -- Loaded eagerly on purpose. With cmd/keys-only lazy-loading, the autocmd
+  -- behind `auto_update` registers only after the plugin is first used, so
+  -- saving a file would not refresh the header until you had pressed <F1> once.
+  event = "VeryLazy",
+  cmd = { "Stdheader" },
+  keys = { "<F1>" },
+  init = function()
+    -- The plugin resolves the login as
+    --     vim.g.user or os.getenv("USER") or git.user() or opts.user
+    -- (lua/42header/utils/header.lua), so $USER wins over `opts.user` and the
+    -- header would be stamped with the system account instead of the 42 login.
+    -- vim.g.user / vim.g.mail are the only hook that outranks the environment.
+    --
+    -- The upstream workaround is to set vim.env.USER, but that changes $USER
+    -- for every process nvim spawns (:terminal, :!, LSP servers). This does not.
+    vim.g.user = {{ .user42 | quote }}
+    vim.g.mail = {{ .mail42 | quote }}
+
+    -- The classic stdheader.vim reads these instead.
+    vim.g.user42 = {{ .user42 | quote }}
+    vim.g.mail42 = {{ .mail42 | quote }}
+  end,
+  opts = {
+    default_map = true, -- <F1> in normal mode
+    auto_update = true, -- refresh the header on save
+    user = {{ .user42 | quote }},
+    mail = {{ .mail42 | quote }},
+    git = {
+      -- Disabled: with git support on, the login is taken from
+      -- `git config user.name`, which is not the 42 login on personal machines.
+      enabled = false,
+      bin = "git",
+      user_global = false,
+      email_global = false,
+    },
+  },
+  config = function(_, opts)
+    require("42header").setup(opts)
+  end,
+}
