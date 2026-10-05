@@ -106,8 +106,70 @@ here.
 | `dot_config/nvim/` | 42 overlay on the stock LazyVim starter |
 | `dot_config/shell/42.sh.tmpl` | POSIX fragment sourced by bash and zsh |
 | `dot_config/tmux/tmux.conf.tmpl` | Omarchy's tmux base + herdr parity |
+| `dot_config/starship.toml` | prompt: full path + git detail, Nerd Font icons, ANSI colours so it follows the theme (also in nvim `:terminal`); legend: `prompt-help` |
 | `run_onchange_*` | idempotent, sudo-free bootstrap |
 | `archive/mac-2026-08/` | the previous Mac snapshot, for reference |
+
+## Prompt (starship)
+
+`dot_config/starship.toml` gives a two-line prompt: full path, detailed git
+state (branch, ahead/behind, staged/modified/untracked counts, lines added and
+removed, rebase/merge progress), language versions, command duration, exit
+code and time. Run **`prompt-help`** for a legend of every icon.
+
+It uses only ANSI colour names, so it follows whatever palette the terminal
+has: `omarchy theme set` changes it, and inside Neovim's `:terminal` the
+colorscheme's `terminal_color_*` apply. No per-theme template is needed.
+
+On Omarchy everything is already in place: starship is installed, Omarchy's
+bash rc initialises it, and the terminals use JetBrainsMono Nerd Font. On the
+other machines two things are needed by hand.
+
+### 1. A Nerd Font (the icons)
+
+Without one, the icons render as empty boxes. Install the font, then **select
+it in the terminal's settings** -- installing alone changes nothing.
+
+**macOS (Air):**
+
+```sh
+brew install --cask font-jetbrains-mono-nerd-font
+```
+
+Then: Terminal → Settings → Profiles → Text → Font, or iTerm2 → Settings →
+Profiles → Text → Font → *JetBrainsMono Nerd Font*. (The archived
+MartianMono Nerd Font in `archive/mac-2026-08/` works too.)
+
+**42 Ubuntu (no sudo):** user fonts live in `~/.local/share/fonts`:
+
+```sh
+mkdir -p ~/.local/share/fonts/JetBrainsMono
+curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz \
+  | tar -xJ -C ~/.local/share/fonts/JetBrainsMono
+fc-cache -f
+fc-list | grep -c "JetBrainsMono Nerd Font"   # > 0 means it is installed
+```
+
+Then: GNOME Terminal → ☰ → Preferences → the profile → *Custom font* →
+*JetBrainsMono Nerd Font*. The fonts take ~50 MB of the home quota; to save
+space keep only `JetBrainsMonoNerdFont-*.ttf` and delete the `Mono`/`Propo`
+variants.
+
+### 2. starship itself
+
+```sh
+# macOS
+brew install starship
+# 42 Ubuntu (no sudo)
+curl -sS https://starship.rs/install.sh | sh -s -- -b ~/.local/bin -y
+```
+
+and initialise it at the end of the shell rc (Omarchy does this for you):
+
+```sh
+echo 'eval "$(starship init zsh)"'  >> ~/.zshrc    # macOS
+echo 'eval "$(starship init bash)"' >> ~/.bashrc   # 42 Ubuntu
+```
 
 ## Neovim
 

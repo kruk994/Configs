@@ -32,6 +32,48 @@ mkcd() {
     mkdir -p -- "$1" && cd -P -- "$1" || return
 }
 
+# Legend for the starship prompt (~/.config/starship.toml). Same icons, same
+# ANSI colours, so it follows the theme like the prompt does.
+prompt-help() {
+    e=$(printf '\033')
+    r="$e[0m" d="$e[90m" B="$e[1m"
+    red="$e[31m" grn="$e[32m" yel="$e[33m" blu="$e[34m" mag="$e[35m" cyn="$e[36m"
+    cat <<EOF
+
+${B}Linia 1, po lewej${r}
+  ${blu}  ${r}      system: Arch / macOS / Ubuntu (42)
+  ${yel}user@host${r}  tylko przez SSH albo jako root
+  ${grn}${r}          jesteś w terminalu wewnątrz Neovima
+  ${blu}${B} ~/ścieżka${r}  pełna ścieżka; ${cyn}${B}nazwa repo${r} wyróżniona, ${red}${r} = brak zapisu
+
+${B}Git${r}
+  ${mag} main${r}      gałąź (${mag}main:origin/x${r} gdy upstream ma inną nazwę)
+  ${mag} a1b2c3d${r}   odłączony HEAD: krótki hash; ${mag} v1.0${r} = tag
+  ${yel}${B} REBASING 2/5${r}  trwa rebase / merge / cherry-pick / bisect
+  ${yel}N${r}  N commitów do wypchnięcia (ahead)
+  ${yel}N${r}  N commitów do pobrania (behind)
+  ${yel} N${r}  pliki w stage (git add)
+  ${yel} N${r}  pliki zmienione, nie dodane
+  ${yel}N${r}  pliki nieśledzone (untracked)
+  ${yel} N${r}  pliki usunięte
+  ${yel} N${r}  pliki przemianowane
+  ${yel} N${r}  wpisy w git stash
+  ${yel} N${r}  konflikty do rozwiązania
+  ${grn}N${r} ${red}N${r}  linie dodane / usunięte względem HEAD
+
+${B}Linia 1, po prawej${r}
+  ${d} 14.1   3.13   22${r}  wersja C / Pythona (+venv) / Node, gdy są pliki w katalogu
+  ${yel} 4s${r}       ostatnia komenda trwała dłużej niż 2 s
+  ${blu} N${r}        N zadań w tle (jobs, fg)
+  ${red} 127${r}      kod błędu ostatniej komendy (INT = Ctrl-C, NOT_FOUND...)
+  ${d} 17:04${r}     godzina wyświetlenia promptu
+
+${B}Linia 2${r}
+  ${cyn}${B}❯${r} ok   ${red}${B}❯${r} ostatnia komenda się nie udała
+
+EOF
+}
+
 # Download a 42 subject PDF (cached) and read it as text. Example:
 #   subject https://cdn.intra.42.fr/pdf/pdf/96987/en.norm.pdf
 subject() {
