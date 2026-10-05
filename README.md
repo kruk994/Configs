@@ -121,55 +121,53 @@ It uses only ANSI colour names, so it follows whatever palette the terminal
 has: `omarchy theme set` changes it, and inside Neovim's `:terminal` the
 colorscheme's `terminal_color_*` apply. No per-theme template is needed.
 
-On Omarchy everything is already in place: starship is installed, Omarchy's
-bash rc initialises it, and the terminals use JetBrainsMono Nerd Font. On the
-other machines two things are needed by hand.
+Starship is started from `42.sh` on every machine (zsh on macOS and at 42,
+bash on Omarchy), unless the shell rc already did it -- Omarchy's bash rc
+runs `starship init bash` itself, and the `STARSHIP_SHELL` check skips the
+second init.
 
-### 1. A Nerd Font (the icons)
+| Machine | starship | Nerd Font (icons) |
+|---|---|---|
+| Omarchy | shipped | shipped, terminals already use it |
+| 42 Ubuntu | **automatic**: `chezmoi apply` installs it into `~/.local/bin` | **automatic**: installed into `~/.local/share/fonts`, and GNOME Terminal's default profile switched to it |
+| macOS | `brew install starship` | `brew install --cask font-jetbrains-mono-nerd-font`, then pick the font in the terminal |
 
-Without one, the icons render as empty boxes. Install the font, then **select
-it in the terminal's settings** -- installing alone changes nothing.
+Without a Nerd Font selected in the terminal, the icons render as empty
+boxes -- installing the font alone changes nothing.
 
-**macOS (Air):**
+### 42 Ubuntu: what `chezmoi apply` does
+
+`run_onchange_before_10-install-tools.sh.tmpl`, all without sudo:
+
+1. **starship** via the official installer into `~/.local/bin` (skipped if
+   already present).
+2. **JetBrainsMono Nerd Font**, only the Regular/Bold/Italic/BoldItalic faces
+   (~10 MB rather than ~120 MB for the whole archive, for the home quota),
+   then `fc-cache`. Skipped if `fc-list` already knows the font.
+3. **GNOME Terminal** default profile set to *JetBrainsMono Nerd Font 12* --
+   only while the profile still uses the system font, so a font chosen by hand
+   is never overwritten.
+
+Open a new terminal afterwards. If the icons are still boxes, set the font by
+hand: GNOME Terminal → ☰ → Preferences → the profile → *Custom font*.
+
+The script runs again only when its contents change. To repeat the install on
+the same machine (e.g. after wiping the fonts):
 
 ```sh
+chezmoi state delete-bucket --bucket=scriptState && chezmoi apply
+```
+
+### macOS (Air)
+
+```sh
+brew install starship
 brew install --cask font-jetbrains-mono-nerd-font
 ```
 
-Then: Terminal → Settings → Profiles → Text → Font, or iTerm2 → Settings →
-Profiles → Text → Font → *JetBrainsMono Nerd Font*. (The archived
-MartianMono Nerd Font in `archive/mac-2026-08/` works too.)
-
-**42 Ubuntu (no sudo):** user fonts live in `~/.local/share/fonts`:
-
-```sh
-mkdir -p ~/.local/share/fonts/JetBrainsMono
-curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz \
-  | tar -xJ -C ~/.local/share/fonts/JetBrainsMono
-fc-cache -f
-fc-list | grep -c "JetBrainsMono Nerd Font"   # > 0 means it is installed
-```
-
-Then: GNOME Terminal → ☰ → Preferences → the profile → *Custom font* →
-*JetBrainsMono Nerd Font*. The fonts take ~50 MB of the home quota; to save
-space keep only `JetBrainsMonoNerdFont-*.ttf` and delete the `Mono`/`Propo`
-variants.
-
-### 2. starship itself
-
-```sh
-# macOS
-brew install starship
-# 42 Ubuntu (no sudo)
-curl -sS https://starship.rs/install.sh | sh -s -- -b ~/.local/bin -y
-```
-
-and initialise it at the end of the shell rc (Omarchy does this for you):
-
-```sh
-echo 'eval "$(starship init zsh)"'  >> ~/.zshrc    # macOS
-echo 'eval "$(starship init bash)"' >> ~/.bashrc   # 42 Ubuntu
-```
+Then Terminal → Settings → Profiles → Text → Font, or iTerm2 → Settings →
+Profiles → Text → Font → *JetBrainsMono Nerd Font*. (The archived MartianMono
+Nerd Font in `archive/mac-2026-08/` works too.)
 
 ## Neovim
 

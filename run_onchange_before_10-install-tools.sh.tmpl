@@ -75,4 +75,51 @@ if [ -d "$HOME/goinfre" ]; then
     used=$(du -sm "$HOME/.local/share/nvim" 2>/dev/null | cut -f1 || echo 0)
     [ "${used:-0}" -gt 300 ] && log "~/.local/share/nvim is ${used}MB -- consider XDG_DATA_HOME in goinfre"
 fi
+
+# ── starship (42 Ubuntu only) ───────────────────────────────────────────────
+# Omarchy ships it; on macOS it comes from brew. Here: the official installer
+# into ~/.local/bin, no root. 42.sh initialises it for zsh.
+if ! command -v starship >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/starship" ]; then
+    log "installing starship into ~/.local/bin"
+    mkdir -p "$HOME/.local/bin"
+    if curl -fsSL https://starship.rs/install.sh | sh -s -- -b "$HOME/.local/bin" -y >/dev/null; then
+        log "$("$HOME/.local/bin/starship" --version | head -1) installed"
+    else
+        printf '  !! starship install failed -- see README "Prompt (starship)"\n' >&2
+    fi
+fi
+
+# ── JetBrainsMono Nerd Font (42 Ubuntu only) ────────────────────────────────
+# The prompt's icons need a Nerd Font. User fonts in ~/.local/share/fonts need
+# no root. Only the four faces a terminal uses are kept (~10 MB instead of
+# ~120 MB for the whole archive) because the home quota is small.
+FONT_DIR="$HOME/.local/share/fonts/JetBrainsMono"
+if ! fc-list 2>/dev/null | grep -q "JetBrainsMono Nerd Font"; then
+    log "installing JetBrainsMono Nerd Font into ~/.local/share/fonts"
+    tmp=$(mktemp -d)
+    url=https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz
+    if curl -fsSL "$url" | tar -xJ -C "$tmp"; then
+        mkdir -p "$FONT_DIR"
+        for face in Regular Bold Italic BoldItalic; do
+            cp "$tmp/JetBrainsMonoNerdFont-$face.ttf" "$FONT_DIR/"
+        done
+        fc-cache -f "$FONT_DIR" >/dev/null 2>&1 || true
+    else
+        printf '  !! Nerd Font download failed -- see README "Prompt (starship)"\n' >&2
+    fi
+    rm -rf "$tmp"
+fi
+
+# Point GNOME Terminal's default profile at the font, but only while it still
+# uses the system font -- a font picked by hand is left alone.
+if command -v gsettings >/dev/null 2>&1 &&
+    uuid=$(gsettings get org.gnome.Terminal.ProfilesList default 2>/dev/null); then
+    uuid=$(printf '%s' "$uuid" | tr -d "'")
+    schema="org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:$uuid/"
+    if [ "$(gsettings get "$schema" use-system-font 2>/dev/null)" = "true" ]; then
+        gsettings set "$schema" font 'JetBrainsMono Nerd Font 12' &&
+            gsettings set "$schema" use-system-font false &&
+            log "GNOME Terminal font set to JetBrainsMono Nerd Font"
+    fi
+fi
 {{ end -}}
