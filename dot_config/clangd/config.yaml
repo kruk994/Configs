@@ -1,0 +1,19 @@
+# clangd user config (all machines, via chezmoi).
+#
+# Without a compile_commands.json clangd falls back to guessing the language
+# from the extension, and a bare .h is guessed as Objective-C++. libft.h then
+# reports `t_list *new` as "'new' is a keyword" -- a C++ error in a C header.
+# Verified 2026-10-05 with `clangd --check=libft/libft.h` (clangd 22.1.8).
+#
+# Scoped to the 42 hub so a C++ project elsewhere keeps its .h as C++.
+# CPP modules (M4+) use .hpp, which this does not touch.
+If:
+  PathMatch: .*/git/42[^/]*/.*\.h
+CompileFlags:
+  Add: [-xc-header, -std=c99]
+---
+# Same warnings as the Makefiles, so the editor shows what `make` will reject.
+If:
+  PathMatch: .*/git/42[^/]*/.*\.[ch]
+CompileFlags:
+  Add: [-Wall, -Wextra, -Werror]

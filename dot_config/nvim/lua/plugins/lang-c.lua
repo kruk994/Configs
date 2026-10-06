@@ -29,4 +29,26 @@ return {
       },
     },
   },
+  {
+    -- No automatic #include insertion. The clangd extra passes
+    -- --header-insertion=iwyu, and with completeUnimported accepting a
+    -- completion silently adds an #include for the header that DEFINES the
+    -- symbol -- on 2026-10-06 that put `#include <bits/posix1_lim.h>` into
+    -- push_swap.h: a glibc-internal header that does not exist on macOS, and
+    -- without the Norm's `# include` indentation.
+    --
+    -- A function, not a table: lazy.nvim replaces list-like tables when it
+    -- merges opts, so this rewrites the one flag and keeps the extra's others.
+    "neovim/nvim-lspconfig",
+    opts = function(_, opts)
+      local clangd = opts.servers and opts.servers.clangd
+      if clangd and clangd.cmd then
+        for i, arg in ipairs(clangd.cmd) do
+          if arg:match("^%-%-header%-insertion=") then
+            clangd.cmd[i] = "--header-insertion=never"
+          end
+        end
+      end
+    end,
+  },
 }
