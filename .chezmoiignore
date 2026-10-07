@@ -15,6 +15,7 @@ README.md
 # theme.lua in particular is a SYMLINK into ~/.local/state/omarchy/current/theme/
 # and is how Omarchy hot-swaps the Neovim colorscheme.
 {{ if eq .machine "omarchy" -}}
+.config/nvim/init.lua
 .config/nvim/lua/plugins/theme.lua
 .config/nvim/lua/plugins/all-themes.lua
 .config/nvim/lua/plugins/disable-news-alert.lua
