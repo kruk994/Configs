@@ -26,6 +26,13 @@ README.md
 .config/nvim/lua/plugins/colorscheme.lua
 {{ end -}}
 
+# ── Ghostty: only macOS gets it from here ──────────────────────────────────
+# Omarchy owns ~/.config/ghostty/config (theme include, GTK options); the 42
+# lab machines have no Ghostty.
+{{ if ne .machine "macos" -}}
+.config/ghostty
+{{ end -}}
+
 # LazyVim writes to these itself (news checksums, plugin pins). Never manage them.
 .config/nvim/lazyvim.json
 .config/nvim/lazy-lock.json

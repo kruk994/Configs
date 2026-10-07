@@ -1,0 +1,29 @@
+# Ghostty on macOS only (see .chezmoiignore). On Omarchy this file belongs to
+# Omarchy -- it pulls in the current theme -- and is never applied from here.
+#
+# Mirrors the Omarchy desktop config where it matters for herdr and Claude Code.
+
+font-family = "JetBrainsMono Nerd Font"
+font-style = Regular
+font-size = 14
+window-padding-x = 14
+window-padding-y = 14
+confirm-close-surface = false
+resize-overlay = never
+cursor-style = block
+cursor-style-blink = false
+shell-integration-features = no-cursor,ssh-env
+
+# Option behaves as Alt. Without this, herdr's alt+enter / alt+1..9 / alt+arrows
+# never arrive: macOS turns Option+key into special characters (alt+1 -> "¡").
+macos-option-as-alt = true
+
+# Ghostty's macOS defaults map Option+Left/Right to word motion (ESC b / ESC f).
+# herdr binds alt+left/right to previous/next tab, so pass the real keys through.
+keybind = alt+left=unbind
+keybind = alt+right=unbind
+
+# Same as the Omarchy config: Shift+Enter is a newline in Claude Code, and
+# Alt+Shift+Enter reaches herdr as its own key (split_vertical).
+keybind = shift+enter=csi:13;2u
+keybind = alt+shift+enter=csi:13;4u
