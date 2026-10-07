@@ -57,6 +57,13 @@ fi
 # unreachable URL never aborts `chezmoi apply`.
 warn() { printf '  !! %s\n' "$1" >&2; }
 mkdir -p "$HOME/.local/bin"
+# chezmoi runs this with the environment it was started from, which on a fresh
+# account does not have ~/.local/bin yet; without it every `command -v` below
+# misses what an earlier run installed.
+case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) PATH="$HOME/.local/bin:$PATH" ;;
+esac
 
 # ── Neovim ──────────────────────────────────────────────────────────────────
 # LazyVim needs Neovim >= 0.11; the Ubuntu package is older. The official
@@ -102,6 +109,39 @@ if [ -d "$HOME/goinfre" ]; then
     [ "${used:-0}" -gt 300 ] && log "~/.local/share/nvim is ${used}MB -- consider XDG_DATA_HOME in goinfre"
 fi
 
+# ── tree-sitter CLI ─────────────────────────────────────────────────────────
+# nvim-treesitter compiles every parser with `tree-sitter build`. When the CLI
+# is missing LazyVim has Mason fetch the latest release -- but every release
+# since 0.26 is linked against glibc 2.39 and does not start on Ubuntu 22.04
+# (glibc 2.35), so no parser compiles and nvim opens with red errors.
+# 0.25.10 is the last release that runs here (glibc 2.34). `build -o` is all
+# nvim-treesitter asks of it for the parsers LazyVim installs; `:checkhealth`
+# still says it wants 0.26.1, which matters only for `generate` (a handful of
+# grammars like latex or swift, none of them installed by default).
+TS_VER=v0.25.10
+if ! tree-sitter --version >/dev/null 2>&1; then
+    log "installing tree-sitter $TS_VER into ~/.local/bin (newer ones need glibc 2.39)"
+    tmp=$(mktemp -d)
+    if curl -fsSL "https://github.com/tree-sitter/tree-sitter/releases/download/$TS_VER/tree-sitter-linux-x64.gz" |
+        gunzip > "$tmp/tree-sitter" && chmod +x "$tmp/tree-sitter" &&
+        "$tmp/tree-sitter" --version >/dev/null 2>&1; then
+        mv "$tmp/tree-sitter" "$HOME/.local/bin/tree-sitter"
+    else
+        warn "tree-sitter install failed -- nvim parsers will not compile"
+    fi
+    rm -rf "$tmp"
+fi
+
+# Mason's copy, if LazyVim already fetched one, would still win: Mason puts its
+# bin/ FIRST on nvim's PATH. Remove it only when it cannot run; once ours is on
+# PATH, LazyVim sees a working `tree-sitter` and never asks Mason again.
+MASON="${XDG_DATA_HOME:-$HOME/.local/share}/nvim/mason"
+if { [ -e "$MASON/bin/tree-sitter" ] || [ -L "$MASON/bin/tree-sitter" ]; } &&
+    ! "$MASON/bin/tree-sitter" --version >/dev/null 2>&1; then
+    rm -rf "$MASON/bin/tree-sitter" "$MASON/packages/tree-sitter-cli"
+    log "removed Mason's tree-sitter-cli (it needs glibc 2.39)"
+fi
+
 # ── ripgrep + fd ────────────────────────────────────────────────────────────
 # LazyVim's file and grep pickers (<leader><space>, <leader>/) shell out to
 # them; macOS has them from brew, Omarchy ships them. Static musl builds, so
@@ -143,6 +183,16 @@ if ! command -v herdr >/dev/null 2>&1; then
     log "installing herdr into ~/.local/bin"
     curl -fsSL https://herdr.dev/install.sh | HERDR_INSTALL_DIR="$HOME/.local/bin" sh >/dev/null ||
         warn "herdr install failed -- https://herdr.dev/docs/install/"
+fi
+
+# ── Claude Code ─────────────────────────────────────────────────────────────
+# The native installer needs no root (it refuses to run under sudo): launcher
+# in ~/.local/bin/claude, the binary in ~/.local/share/claude/versions/. Each
+# version is ~220 MB and it updates itself -- keep an eye on the home quota.
+if ! command -v claude >/dev/null 2>&1; then
+    log "installing Claude Code into ~/.local"
+    curl -fsSL https://claude.ai/install.sh | bash >/dev/null ||
+        warn "Claude Code install failed -- curl -fsSL https://claude.ai/install.sh | bash"
 fi
 
 # ── starship ────────────────────────────────────────────────────────────────

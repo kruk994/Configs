@@ -124,8 +124,9 @@ colorscheme's `terminal_color_*` apply. No per-theme template is needed.
 
 Starship is started from `42.sh` on every machine (zsh on macOS and at 42,
 bash on Omarchy), unless the shell rc already did it -- Omarchy's bash rc
-runs `starship init bash` itself, and the `STARSHIP_SHELL` check skips the
-second init.
+runs `starship init bash` itself. The check is starship's precmd function, not
+`$STARSHIP_SHELL`: that variable is exported, so shells started inside herdr,
+tmux or nvim inherited it and came up with the bare zsh prompt.
 
 | Machine | starship | Nerd Font (icons) |
 |---|---|---|
@@ -144,14 +145,20 @@ into `~/.local`, each step skipped when the tool is already there:
 1. **Neovim** (release tarball; Ubuntu's package is too old for LazyVim). The
    binary is run once before it is copied, so a release that needs a newer
    glibc than 22.04's 2.35 leaves the old nvim in place.
-2. **ripgrep** and **fd** (static musl builds, pinned) for LazyVim's pickers.
-3. **herdr** via its official installer.
-4. **starship** via its official installer.
-5. **norminette** in a venv, or `pip --user` when the lab lacks `python3-venv`.
-6. **JetBrainsMono Nerd Font**, only the Regular/Bold/Italic/BoldItalic faces
+2. **tree-sitter CLI v0.25.10**, pinned: nvim-treesitter compiles its parsers
+   with it, and every release since 0.26 needs glibc 2.39 (Ubuntu 22.04 has
+   2.35). A copy Mason already fetched that cannot run is deleted, because
+   Mason's `bin/` comes first on nvim's PATH. `:checkhealth` warns that it
+   wants 0.26.1 -- harmless, that is only for `generate`.
+3. **ripgrep** and **fd** (static musl builds, pinned) for LazyVim's pickers.
+4. **herdr** via its official installer.
+5. **Claude Code** via its native installer (~220 MB per version; home quota).
+6. **starship** via its official installer.
+7. **norminette** in a venv, or `pip --user` when the lab lacks `python3-venv`.
+8. **JetBrainsMono Nerd Font**, only the Regular/Bold/Italic/BoldItalic faces
    (~10 MB rather than ~120 MB for the whole archive, for the home quota),
    then `fc-cache`. Skipped if `fc-list` already knows the font.
-7. **GNOME Terminal** default profile: font set to *JetBrainsMono Nerd Font 12*
+9. **GNOME Terminal** default profile: font set to *JetBrainsMono Nerd Font 12*
    (only while the profile still uses the system font, so a font chosen by hand
    is never overwritten), **Kanagawa colours** (always), dark window chrome.
 

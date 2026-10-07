@@ -98,11 +98,17 @@ if [ -n "${ZSH_VERSION:-}" ]; then
 fi
 
 # ── Prompt ──────────────────────────────────────────────────────────────────
-# Start starship unless something already did: Omarchy's bash rc runs
-# `starship init bash` before this file, and starship exports STARSHIP_SHELL.
+# Start starship unless this very shell already did (Omarchy's bash rc runs
+# `starship init bash` before this file). Checked by its precmd function --
+# prompt_starship_precmd in zsh, starship_precmd in bash -- because functions
+# are not inherited. $STARSHIP_SHELL was the old check, but starship EXPORTS
+# it, so every shell started from an initialised one (herdr, tmux, nvim
+# :terminal) inherited it, skipped init and fell back to the bare zsh prompt.
 case $- in
     *i*)
-        if [ -z "${STARSHIP_SHELL:-}" ] && command -v starship >/dev/null 2>&1; then
+        if ! typeset -f prompt_starship_precmd >/dev/null 2>&1 &&
+            ! typeset -f starship_precmd >/dev/null 2>&1 &&
+            command -v starship >/dev/null 2>&1; then
             if [ -n "${ZSH_VERSION:-}" ]; then
                 eval "$(starship init zsh)"
             elif [ -n "${BASH_VERSION:-}" ]; then
