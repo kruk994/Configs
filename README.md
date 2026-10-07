@@ -103,6 +103,7 @@ here.
 |---|---|
 | `.chezmoi.toml.tmpl` | machine detection, prompts for the 42 identity |
 | `.chezmoiignore` | repo-only paths + the Omarchy guard |
+| `.chezmoidata/kanagawa.toml` | terminal palette shared by Ghostty (macOS) and GNOME Terminal (42) |
 | `dot_config/nvim/` | 42 overlay on the stock LazyVim starter |
 | `dot_config/shell/42.sh.tmpl` | POSIX fragment sourced by bash and zsh |
 | `dot_config/tmux/tmux.conf.tmpl` | Omarchy's tmux base + herdr parity |
@@ -137,16 +138,27 @@ boxes -- installing the font alone changes nothing.
 
 ### 42 Ubuntu: what `chezmoi apply` does
 
-`run_onchange_before_10-install-tools.sh.tmpl`, all without sudo:
+`run_onchange_before_10-install-tools.sh.tmpl`, all without sudo, everything
+into `~/.local`, each step skipped when the tool is already there:
 
-1. **starship** via the official installer into `~/.local/bin` (skipped if
-   already present).
-2. **JetBrainsMono Nerd Font**, only the Regular/Bold/Italic/BoldItalic faces
+1. **Neovim** (release tarball; Ubuntu's package is too old for LazyVim). The
+   binary is run once before it is copied, so a release that needs a newer
+   glibc than 22.04's 2.35 leaves the old nvim in place.
+2. **ripgrep** and **fd** (static musl builds, pinned) for LazyVim's pickers.
+3. **herdr** via its official installer.
+4. **starship** via its official installer.
+5. **norminette** in a venv, or `pip --user` when the lab lacks `python3-venv`.
+6. **JetBrainsMono Nerd Font**, only the Regular/Bold/Italic/BoldItalic faces
    (~10 MB rather than ~120 MB for the whole archive, for the home quota),
    then `fc-cache`. Skipped if `fc-list` already knows the font.
-3. **GNOME Terminal** default profile set to *JetBrainsMono Nerd Font 12* --
-   only while the profile still uses the system font, so a font chosen by hand
-   is never overwritten.
+7. **GNOME Terminal** default profile: font set to *JetBrainsMono Nerd Font 12*
+   (only while the profile still uses the system font, so a font chosen by hand
+   is never overwritten), **Kanagawa colours** (always), dark window chrome.
+
+`run_onchange_after_20-hook-shell-rc.sh.tmpl` creates `~/.zshrc` if zsh is the
+login shell and the file is missing, then hooks `42.sh` into it. `42.sh` also
+turns on saved history and Tab completion in zsh -- Ubuntu's `/etc/zsh/zshrc`
+does neither -- unless oh-my-zsh or a campus `.zshrc` already did.
 
 Open a new terminal afterwards. If the icons are still boxes, set the font by
 hand: GNOME Terminal → ☰ → Preferences → the profile → *Custom font*.
@@ -168,6 +180,22 @@ brew install --cask font-jetbrains-mono-nerd-font
 Then Terminal → Settings → Profiles → Text → Font, or iTerm2 → Settings →
 Profiles → Text → Font → *JetBrainsMono Nerd Font*. (The archived MartianMono
 Nerd Font in `archive/mac-2026-08/` works too.)
+
+## Colours (Kanagawa everywhere)
+
+`.chezmoidata/kanagawa.toml` holds the palette of the Omarchy desktop theme and
+is the single source for every terminal this repo colours:
+
+| Machine | Terminal | Where the palette goes |
+|---|---|---|
+| Omarchy | Ghostty / Alacritty | not from here -- `omarchy theme set` owns it |
+| macOS | Ghostty | `dot_config/ghostty/config.tmpl` |
+| 42 Ubuntu | GNOME Terminal | default profile, via `gsettings` in the install script |
+
+Everything else follows the terminal: starship, tmux and herdr use ANSI colour
+names only, and Neovim's `kanagawa` colorscheme has the same `#1f1f28`
+background. Change the palette in the TOML file and `chezmoi apply` -- the
+install script re-runs because its rendered contents changed.
 
 ## Neovim
 

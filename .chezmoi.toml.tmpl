@@ -4,6 +4,10 @@
    `machine` classifies the host so templates elsewhere can branch:
      omarchy | macos | 42 | generic
 
+   "42" is any Ubuntu box, or anything with a goinfre/sgoinfre mount: the lab
+   machines are the only Ubuntu this repo targets, and campuses differ in which
+   of the two mounts they have.
+
    `user42` / `mail42` hold the 42 identity. They are deliberately kept
    separate from the system $USER: the 42 login is the same everywhere, but the
    system username differs per machine. The previous Mac .zshrc solved this by
@@ -18,7 +22,7 @@
 {{-   $machine = "macos" -}}
 {{- else if stat "/usr/share/omarchy" -}}
 {{-   $machine = "omarchy" -}}
-{{- else if stat "/sgoinfre" -}}
+{{- else if or (stat "/sgoinfre") (stat "/goinfre") (eq (get .chezmoi.osRelease "id" | default "") "ubuntu") -}}
 {{-   $machine = "42" -}}
 {{- end -}}
 

@@ -21,5 +21,13 @@ hook() {
     fi
 }
 
+# A zsh user without ~/.zshrc would otherwise get nothing: hook() skips missing
+# files, and on Ubuntu zsh even starts its newuser wizard instead. Create it so
+# the hook has somewhere to go. Never for bash users -- that would start the
+# wizard for nobody, and Omarchy's ~/.bashrc always exists.
+case "${SHELL:-}" in
+    */zsh) [ -f "$HOME/.zshrc" ] || : > "$HOME/.zshrc" ;;
+esac
+
 hook "$HOME/.bashrc"
 hook "$HOME/.zshrc"

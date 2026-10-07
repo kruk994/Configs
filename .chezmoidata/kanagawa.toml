@@ -1,0 +1,22 @@
+# Kanagawa -- the exact palette of the Omarchy theme on the desktop
+# (~/.local/state/omarchy/current/theme/ghostty.conf, copied 2026-10-07).
+#
+# One source for every terminal this repo colours, so they cannot drift apart:
+#   macOS   -> dot_config/ghostty/config.tmpl
+#   42      -> GNOME Terminal profile, set by run_onchange_before_10-install-tools
+# Neovim uses the kanagawa.nvim colorscheme, whose background is the same #1f1f28.
+# Omarchy is not coloured from here: `omarchy theme set` owns its terminals.
+
+[kanagawa]
+background = "#1f1f28"
+foreground = "#dcd7ba"
+cursor = "#dcd7ba"
+selection_bg = "#363646"
+selection_fg = "#dcd7ba"
+# ANSI 0-15: black red green yellow blue magenta cyan white, then the bright row.
+ansi = [
+    "#1f1f28", "#c34043", "#76946a", "#c0a36e",
+    "#7e9cd8", "#957fb8", "#6a9589", "#dcd7ba",
+    "#54546D", "#e82424", "#98bb6c", "#e6c384",
+    "#7fb4ca", "#938aa9", "#7aa89f", "#dcd7ba",
+]

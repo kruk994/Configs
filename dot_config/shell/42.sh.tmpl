@@ -81,6 +81,22 @@ subject() {
         pdftotext -nopgbrk -layout -- "$HOME/.cache/${1##*/}" - | uniq | less
 }
 
+# ── zsh basics ──────────────────────────────────────────────────────────────
+# macOS's /etc/zshrc saves history and Omarchy runs bash, but Ubuntu's
+# /etc/zsh/zshrc does neither: without this, history dies with the terminal
+# and Tab completes only file names. Every line defers to an existing setup
+# (oh-my-zsh, a campus .zshrc) -- nothing is overridden. Plain commands only,
+# so bash can still parse this file.
+if [ -n "${ZSH_VERSION:-}" ]; then
+    [ -n "${HISTFILE:-}" ] || HISTFILE="$HOME/.zsh_history"
+    [ "${SAVEHIST:-0}" -ge 10000 ] || SAVEHIST=10000
+    [ "${HISTSIZE:-0}" -ge 10000 ] || HISTSIZE=10000
+    setopt APPEND_HISTORY HIST_IGNORE_DUPS HIST_IGNORE_SPACE
+    if ! typeset -f compdef >/dev/null 2>&1; then
+        autoload -Uz compinit && compinit -i
+    fi
+fi
+
 # ── Prompt ──────────────────────────────────────────────────────────────────
 # Start starship unless something already did: Omarchy's bash rc runs
 # `starship init bash` before this file, and starship exports STARSHIP_SHELL.

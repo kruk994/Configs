@@ -24,10 +24,17 @@ install_norminette() {
         pipx install norminette && return 0
     fi
     venv="$HOME/.local/share/norminette-venv"
-    python3 -m venv "$venv" || return 1
-    "$venv/bin/pip" install --quiet --upgrade pip norminette || return 1
-    mkdir -p "$HOME/.local/bin"
-    ln -sf "$venv/bin/norminette" "$HOME/.local/bin/norminette"
+    if python3 -m venv "$venv" 2>/dev/null &&
+        "$venv/bin/pip" install --quiet --upgrade pip norminette; then
+        mkdir -p "$HOME/.local/bin"
+        ln -sf "$venv/bin/norminette" "$HOME/.local/bin/norminette"
+        return 0
+    fi
+    # Ubuntu 22.04 without the python3-venv package cannot create a venv
+    # ("ensurepip is not available"), and installing that package needs root.
+    # 22.04 predates PEP 668, so a plain user install still works there.
+    rm -rf "$venv"
+    python3 -m pip install --quiet --user norminette
 }
 
 if ! command -v norminette >/dev/null 2>&1; then
@@ -45,9 +52,31 @@ if ! command -v norminette >/dev/null 2>&1; then
 fi
 
 {{ if eq .machine "42" -}}
-# ── Neovim (42 Ubuntu only) ─────────────────────────────────────────────────
-# LazyVim needs Neovim >= 0.11; the Ubuntu package is older. Install the
-# official release tarball into ~/.local, which needs no root.
+# Everything below lands in ~/.local (no root on the lab machines) and is
+# skipped when the tool is already there. A failed download only warns, so one
+# unreachable URL never aborts `chezmoi apply`.
+warn() { printf '  !! %s\n' "$1" >&2; }
+mkdir -p "$HOME/.local/bin"
+
+# ── Neovim ──────────────────────────────────────────────────────────────────
+# LazyVim needs Neovim >= 0.11; the Ubuntu package is older. The official
+# release tarball needs glibc 2.34 (v0.12.5); Ubuntu 22.04 has 2.35. It is run
+# once from the temp dir before being copied, so a release that ever outgrows
+# the lab's glibc leaves the old nvim in place instead of a broken one.
+install_nvim() {
+    tmp=$(mktemp -d)
+    url=https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
+    if curl -fsSL "$url" | tar -xz -C "$tmp" &&
+        "$tmp/nvim-linux-x86_64/bin/nvim" --version >/dev/null 2>&1; then
+        cp -r "$tmp"/nvim-linux-x86_64/* "$HOME/.local/"
+        rc=0
+    else
+        rc=1
+    fi
+    rm -rf "$tmp"
+    return $rc
+}
+
 need_nvim=1
 if command -v nvim >/dev/null 2>&1; then
     v=$(nvim --version | head -1 | sed 's/^NVIM v//')
@@ -58,14 +87,11 @@ if command -v nvim >/dev/null 2>&1; then
 fi
 if [ "$need_nvim" -eq 1 ]; then
     log "installing Neovim into ~/.local (Ubuntu package is too old for LazyVim)"
-    tmp=$(mktemp -d)
-    url=https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
-    curl -fsSL "$url" -o "$tmp/nvim.tar.gz"
-    tar -xzf "$tmp/nvim.tar.gz" -C "$tmp"
-    mkdir -p "$HOME/.local"
-    cp -r "$tmp"/nvim-linux-x86_64/* "$HOME/.local/"
-    rm -rf "$tmp"
-    log "Neovim $("$HOME/.local/bin/nvim" --version | head -1) installed"
+    if install_nvim; then
+        log "$("$HOME/.local/bin/nvim" --version | head -1) installed"
+    else
+        warn "Neovim download failed or the binary does not run here (glibc?)"
+    fi
 fi
 
 # The 42 home quota is small and LazyVim's plugin data plus Mason's clangd runs
@@ -76,20 +102,62 @@ if [ -d "$HOME/goinfre" ]; then
     [ "${used:-0}" -gt 300 ] && log "~/.local/share/nvim is ${used}MB -- consider XDG_DATA_HOME in goinfre"
 fi
 
-# ── starship (42 Ubuntu only) ───────────────────────────────────────────────
+# ── ripgrep + fd ────────────────────────────────────────────────────────────
+# LazyVim's file and grep pickers (<leader><space>, <leader>/) shell out to
+# them; macOS has them from brew, Omarchy ships them. Static musl builds, so
+# glibc does not matter. Pinned: the archive names carry the version.
+# Ubuntu's own fd package calls the binary `fdfind`, which LazyVim also accepts.
+install_tarball_bin() { # <name> <url> <path of the binary inside the archive>
+    tmp=$(mktemp -d)
+    if curl -fsSL "$2" | tar -xz -C "$tmp" && [ -x "$tmp/$3" ]; then
+        cp "$tmp/$3" "$HOME/.local/bin/$1"
+        rc=0
+    else
+        rc=1
+    fi
+    rm -rf "$tmp"
+    return $rc
+}
+
+RG=ripgrep-15.2.0-x86_64-unknown-linux-musl
+if ! command -v rg >/dev/null 2>&1; then
+    log "installing ripgrep into ~/.local/bin"
+    install_tarball_bin rg \
+        "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/$RG.tar.gz" \
+        "$RG/rg" || warn "ripgrep install failed"
+fi
+
+FD=fd-v10.5.0-x86_64-unknown-linux-musl
+if ! command -v fd >/dev/null 2>&1 && ! command -v fdfind >/dev/null 2>&1; then
+    log "installing fd into ~/.local/bin"
+    install_tarball_bin fd \
+        "https://github.com/sharkdp/fd/releases/download/v10.5.0/$FD.tar.gz" \
+        "$FD/fd" || warn "fd install failed"
+fi
+
+# ── herdr ───────────────────────────────────────────────────────────────────
+# Same multiplexer as on macOS and Omarchy (~/.config/herdr/config.toml is
+# already applied). The official installer puts a static binary into
+# ~/.local/bin and touches no shell rc.
+if ! command -v herdr >/dev/null 2>&1; then
+    log "installing herdr into ~/.local/bin"
+    curl -fsSL https://herdr.dev/install.sh | HERDR_INSTALL_DIR="$HOME/.local/bin" sh >/dev/null ||
+        warn "herdr install failed -- https://herdr.dev/docs/install/"
+fi
+
+# ── starship ────────────────────────────────────────────────────────────────
 # Omarchy ships it; on macOS it comes from brew. Here: the official installer
 # into ~/.local/bin, no root. 42.sh initialises it for zsh.
 if ! command -v starship >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/starship" ]; then
     log "installing starship into ~/.local/bin"
-    mkdir -p "$HOME/.local/bin"
     if curl -fsSL https://starship.rs/install.sh | sh -s -- -b "$HOME/.local/bin" -y >/dev/null; then
         log "$("$HOME/.local/bin/starship" --version | head -1) installed"
     else
-        printf '  !! starship install failed -- see README "Prompt (starship)"\n' >&2
+        warn 'starship install failed -- see README "Prompt (starship)"'
     fi
 fi
 
-# ── JetBrainsMono Nerd Font (42 Ubuntu only) ────────────────────────────────
+# ── JetBrainsMono Nerd Font ─────────────────────────────────────────────────
 # The prompt's icons need a Nerd Font. User fonts in ~/.local/share/fonts need
 # no root. Only the four faces a terminal uses are kept (~10 MB instead of
 # ~120 MB for the whole archive) because the home quota is small.
@@ -105,21 +173,46 @@ if ! fc-list 2>/dev/null | grep -q "JetBrainsMono Nerd Font"; then
         done
         fc-cache -f "$FONT_DIR" >/dev/null 2>&1 || true
     else
-        printf '  !! Nerd Font download failed -- see README "Prompt (starship)"\n' >&2
+        warn 'Nerd Font download failed -- see README "Prompt (starship)"'
     fi
     rm -rf "$tmp"
 fi
 
-# Point GNOME Terminal's default profile at the font, but only while it still
-# uses the system font -- a font picked by hand is left alone.
+# ── GNOME Terminal: font + Kanagawa ─────────────────────────────────────────
+# The font is set only while the profile still uses the system font, so a font
+# picked by hand is left alone. The colours are always written: they come from
+# .chezmoidata/kanagawa.toml, the same palette as Ghostty on macOS, and this
+# script re-runs only when that palette (or the script) changes.
 if command -v gsettings >/dev/null 2>&1 &&
     uuid=$(gsettings get org.gnome.Terminal.ProfilesList default 2>/dev/null); then
     uuid=$(printf '%s' "$uuid" | tr -d "'")
     schema="org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:$uuid/"
+    gs() { gsettings set "$schema" "$@"; }
+
     if [ "$(gsettings get "$schema" use-system-font 2>/dev/null)" = "true" ]; then
-        gsettings set "$schema" font 'JetBrainsMono Nerd Font 12' &&
-            gsettings set "$schema" use-system-font false &&
+        gs font 'JetBrainsMono Nerd Font 12' &&
+            gs use-system-font false &&
             log "GNOME Terminal font set to JetBrainsMono Nerd Font"
     fi
+
+    if gs use-theme-colors false &&
+        gs palette "[{{ range $i, $c := .kanagawa.ansi }}{{ if $i }}, {{ end }}'{{ $c }}'{{ end }}]" &&
+        gs background-color '{{ .kanagawa.background }}' &&
+        gs foreground-color '{{ .kanagawa.foreground }}' &&
+        gs bold-color-same-as-fg true &&
+        gs bold-is-bright false &&
+        gs cursor-colors-set true &&
+        gs cursor-background-color '{{ .kanagawa.cursor }}' &&
+        gs cursor-foreground-color '{{ .kanagawa.background }}' &&
+        gs highlight-colors-set true &&
+        gs highlight-background-color '{{ .kanagawa.selection_bg }}' &&
+        gs highlight-foreground-color '{{ .kanagawa.selection_fg }}'; then
+        log "GNOME Terminal colours set to Kanagawa"
+    else
+        warn "could not set GNOME Terminal colours (no GNOME session?)"
+    fi
+
+    # Dark header bar and tabs, so the window chrome matches the palette.
+    gsettings set org.gnome.Terminal.Legacy.Settings theme-variant 'dark' 2>/dev/null || true
 fi
 {{ end -}}

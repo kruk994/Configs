@@ -28,27 +28,14 @@ keybind = alt+right=unbind
 keybind = shift+enter=csi:13;2u
 keybind = alt+shift+enter=csi:13;4u
 
-# Kanagawa -- the exact palette of the Omarchy theme on the desktop
-# (~/.local/state/omarchy/current/theme/ghostty.conf, copied 2026-10-07), so
-# herdr's theme = "terminal" and nvim look the same on both machines.
-background = #1f1f28
-foreground = #dcd7ba
-cursor-color = #dcd7ba
-selection-background = #363646
-selection-foreground = #dcd7ba
-palette = 0=#1f1f28
-palette = 1=#c34043
-palette = 2=#76946a
-palette = 3=#c0a36e
-palette = 4=#7e9cd8
-palette = 5=#957fb8
-palette = 6=#6a9589
-palette = 7=#dcd7ba
-palette = 8=#54546D
-palette = 9=#e82424
-palette = 10=#98bb6c
-palette = 11=#e6c384
-palette = 12=#7fb4ca
-palette = 13=#938aa9
-palette = 14=#7aa89f
-palette = 15=#dcd7ba
+# Kanagawa, from .chezmoidata/kanagawa.toml -- the same palette GNOME Terminal
+# gets on the 42 machines, so herdr's theme = "terminal" and nvim look the same
+# everywhere.
+background = {{ .kanagawa.background }}
+foreground = {{ .kanagawa.foreground }}
+cursor-color = {{ .kanagawa.cursor }}
+selection-background = {{ .kanagawa.selection_bg }}
+selection-foreground = {{ .kanagawa.selection_fg }}
+{{ range $i, $c := .kanagawa.ansi -}}
+palette = {{ $i }}={{ $c }}
+{{ end -}}
