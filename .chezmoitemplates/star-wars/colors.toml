@@ -1,0 +1,35 @@
+{{- /* Omarchy theme palette. Called with one planet from .chezmoidata/star-wars.yaml. */ -}}
+{{- $c := .colors -}}
+mode = "dark"
+
+accent = "{{ $c.accent }}"
+selection = "{{ $c.selection }}"
+muted = "{{ $c.muted }}"
+
+background = "{{ $c.background }}"
+dark_background = "{{ $c.dark_background }}"
+darker_background = "{{ $c.darker_background }}"
+lighter_background = "{{ $c.lighter_background }}"
+
+foreground = "{{ $c.foreground }}"
+dark_foreground = "{{ $c.dark_foreground }}"
+light_foreground = "{{ $c.light_foreground }}"
+bright_foreground = "{{ $c.bright_foreground }}"
+
+red = "{{ $c.red }}"
+yellow = "{{ $c.yellow }}"
+orange = "{{ $c.orange }}"
+green = "{{ $c.green }}"
+cyan = "{{ $c.cyan }}"
+blue = "{{ $c.blue }}"
+magenta = "{{ $c.magenta }}"
+brown = "{{ $c.brown }}"
+
+bright_red = "{{ $c.bright_red }}"
+bright_yellow = "{{ $c.bright_yellow }}"
+bright_green = "{{ $c.bright_green }}"
+bright_cyan = "{{ $c.bright_cyan }}"
+bright_blue = "{{ $c.bright_blue }}"
+bright_magenta = "{{ $c.bright_magenta }}"
+
+hyprland_active_border = "{{ range $i, $s := .border.colors }}rgba({{ $s }}) {{ end }}{{ .border.angle }}deg"

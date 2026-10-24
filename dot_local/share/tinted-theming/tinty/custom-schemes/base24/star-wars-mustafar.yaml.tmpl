@@ -1,0 +1,2 @@
+{{- $id := trimPrefix "star-wars-" (base .chezmoi.targetFile | trimSuffix ".yaml") -}}
+{{- template "star-wars/base24.yaml" (dict "id" $id "p" (index .starWars.planets $id)) -}}

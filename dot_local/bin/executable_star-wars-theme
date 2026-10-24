@@ -1,0 +1,344 @@
+#!/bin/sh
+# star-wars-theme -- one command for the Star Wars themes on any Linux desktop.
+# Managed by chezmoi -- edit dot_local/bin/executable_star-wars-theme in ~/git/configs.
+#
+#   star-wars-theme list            planets, current one marked
+#   star-wars-theme set <planet>    switch theme (tatooine, hoth, ...)
+#   star-wars-theme bg [next]       next wallpaper of the current planet
+#   star-wars-theme current         name of the applied theme
+#
+# Omarchy: chezmoi links the planets into ~/.config/omarchy/themes, and this
+# only forwards to `omarchy theme set` / `omarchy theme bg next`.
+#
+# Everywhere else tinty does the switching. `tinty apply base24-star-wars-<p>`
+# themes the shell, terminals and Neovim from the tinted-theming templates and
+# then runs `star-wars-theme tinty-hook` (a global hook in tinty's config.toml),
+# which covers what tinty has no template for: GTK/GNOME, Hyprland, Waybar,
+# Quickshell and the wallpaper. Any other tinty scheme works too -- the desktop
+# then follows its palette, only the wallpaper stays as it is.
+set -eu
+
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
+CFG="${XDG_CONFIG_HOME:-$HOME/.config}"
+THEMES="$DATA/star-wars-themes"
+TINTY_DATA="$DATA/tinted-theming/tinty"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/star-wars-theme"
+
+log() { printf '  \033[36m::\033[0m %s\n' "$*"; }
+warn() { printf '  !! %s\n' "$*" >&2; }
+die() { warn "$*"; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+is_omarchy() { [ -d "${OMARCHY_PATH:-/usr/share/omarchy}" ] && have omarchy; }
+
+planets() {
+    for env in "$THEMES"/*/theme.env; do
+        [ -f "$env" ] && basename "$(dirname "$env")"
+    done
+}
+
+# ── Commands ────────────────────────────────────────────────────────────────
+
+cmd_current() {
+    if is_omarchy; then
+        cat "${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme.name" 2>/dev/null || echo "none"
+    elif [ -f "$STATE/current" ]; then
+        cat "$STATE/current"
+    else
+        echo "none"
+    fi
+}
+
+cmd_list() {
+    cur=$(cmd_current)
+    for p in $(planets); do
+        mark=" "
+        case $cur in *star-wars-$p) mark="*" ;; esac
+        printf '%s %s\n' "$mark" "$p"
+    done
+}
+
+cmd_set() {
+    p="${1:-}"
+    [ -n "$p" ] || die "usage: star-wars-theme set <planet>   (see: star-wars-theme list)"
+    [ -f "$THEMES/$p/theme.env" ] || die "no such planet: $p   (see: star-wars-theme list)"
+    if is_omarchy; then
+        omarchy theme set "star-wars-$p"
+    elif have tinty; then
+        tinty apply "base24-star-wars-$p"
+    else
+        die "tinty is not installed -- run 'chezmoi apply' (it installs tinty into ~/.local/bin)"
+    fi
+}
+
+cmd_bg() {
+    if is_omarchy; then
+        exec omarchy theme bg next
+    fi
+    id=$(sed -n 's/.*star-wars-//p' "$STATE/current" 2>/dev/null || true)
+    [ -n "$id" ] || die "the current theme is not a Star Wars one, it has no wallpapers"
+    cur=$(readlink "$STATE/background" 2>/dev/null || true)
+    first="" next="" take=0
+    for f in "$THEMES/$id"/backgrounds/*; do
+        [ -f "$f" ] || continue
+        [ -n "$first" ] || first=$f
+        if [ "$take" = 1 ]; then next=$f; break; fi
+        [ "$f" = "$cur" ] && take=1
+    done
+    set_wallpaper "${next:-$first}"
+}
+
+# ── tinty hook ──────────────────────────────────────────────────────────────
+
+# Palette of a scheme that is not ours, from the variables tinty exports to its
+# hooks. base16 schemes have no base10-17, so those fall back to base00/01.
+hex() {
+    for n in "$@"; do
+        eval "r=\${TINTY_SCHEME_PALETTE_BASE${n}_HEX_R:-} g=\${TINTY_SCHEME_PALETTE_BASE${n}_HEX_G:-} b=\${TINTY_SCHEME_PALETTE_BASE${n}_HEX_B:-}"
+        if [ -n "$r" ]; then printf '#%s%s%s' "$r" "$g" "$b"; return 0; fi
+    done
+}
+
+palette_from_tinty() {
+    SW_ID="" SW_GNOME_ACCENT="" SW_ICONS=""
+    SW_NAME="${TINTY_SCHEME_ID:-tinty}"
+    SW_BACKGROUND=$(hex 00) SW_LIGHTER_BACKGROUND=$(hex 01) SW_SELECTION=$(hex 02)
+    SW_MUTED=$(hex 03) SW_DARK_FOREGROUND=$(hex 04) SW_FOREGROUND=$(hex 05)
+    SW_LIGHT_FOREGROUND=$(hex 06) SW_BRIGHT_FOREGROUND=$(hex 07)
+    SW_RED=$(hex 08) SW_ORANGE=$(hex 09) SW_YELLOW=$(hex 0A) SW_GREEN=$(hex 0B)
+    SW_CYAN=$(hex 0C) SW_BLUE=$(hex 0D) SW_MAGENTA=$(hex 0E) SW_BROWN=$(hex 0F)
+    SW_DARK_BACKGROUND=$(hex 10 00) SW_DARKER_BACKGROUND=$(hex 11 00)
+    SW_BRIGHT_RED=$(hex 12 08) SW_BRIGHT_YELLOW=$(hex 13 0A)
+    SW_BRIGHT_GREEN=$(hex 14 0B) SW_BRIGHT_CYAN=$(hex 15 0C)
+    SW_BRIGHT_BLUE=$(hex 16 0D) SW_BRIGHT_MAGENTA=$(hex 17 0E)
+    SW_ACCENT=$SW_BLUE
+    SW_BORDER1="${SW_ACCENT#\#}ee" SW_BORDER2="${SW_CYAN#\#}ee" SW_BORDER_ANGLE=45
+}
+
+# Add LINE to FILE once (creating it), at the end or, with "top", the start.
+ensure_line() {
+    file=$1 line=$2 where=${3:-end}
+    mkdir -p "$(dirname "$file")"
+    [ -f "$file" ] || : >"$file"
+    grep -qxF "$line" "$file" && return 0
+    if [ "$where" = top ]; then
+        tmp=$(mktemp)
+        { printf '%s\n' "$line"; cat "$file"; } >"$tmp" && cat "$tmp" >"$file"
+        rm -f "$tmp"
+    else
+        printf '\n# Star Wars themes (star-wars-theme, managed by chezmoi)\n%s\n' "$line" >>"$file"
+    fi
+    log "hooked the theme into ${file#"$HOME"/}"
+}
+
+# The tinted-terminal item is synced once; tinty builds every terminal's file
+# into that checkout, so each installed terminal takes its own from there.
+apply_terminals() {
+    src="$TINTY_DATA/repos/tinted-terminal/themes"
+    [ -d "$src" ] || return 0
+    id="${TINTY_SCHEME_ID:-}"
+    if have kitty && [ -f "$src/kitty/$id.conf" ]; then
+        mkdir -p "$CFG/kitty"
+        cp -f "$src/kitty/$id.conf" "$CFG/kitty/star-wars-theme.conf"
+        ensure_line "$CFG/kitty/kitty.conf" "include star-wars-theme.conf"
+        pkill -USR1 -x kitty 2>/dev/null || true
+    fi
+    if have ghostty && [ -f "$src/ghostty/$id" ]; then
+        mkdir -p "$CFG/ghostty"
+        cp -f "$src/ghostty/$id" "$CFG/ghostty/star-wars-theme"
+        ensure_line "$CFG/ghostty/config" "config-file = ?star-wars-theme"
+        pkill -USR2 -x ghostty 2>/dev/null || true
+    fi
+    if have foot && [ -f "$src/foot/$id.ini" ]; then
+        mkdir -p "$CFG/foot"
+        cp -f "$src/foot/$id.ini" "$CFG/foot/star-wars-theme.ini"
+        # Must come before the first [section] to land in [main].
+        ensure_line "$CFG/foot/foot.ini" "include=$CFG/foot/star-wars-theme.ini" top
+    fi
+    if have alacritty && [ -f "$src/alacritty/$id.toml" ]; then
+        mkdir -p "$CFG/alacritty"
+        cp -f "$src/alacritty/$id.toml" "$CFG/alacritty/star-wars-theme.toml"
+        if [ ! -f "$CFG/alacritty/alacritty.toml" ]; then
+            printf '[general]\nimport = ["%s"]\n' "$CFG/alacritty/star-wars-theme.toml" >"$CFG/alacritty/alacritty.toml"
+        elif ! grep -qF star-wars-theme.toml "$CFG/alacritty/alacritty.toml"; then
+            # A line cannot be appended safely to an existing TOML [general].
+            warn "add \"$CFG/alacritty/star-wars-theme.toml\" to general.import in alacritty.toml"
+        fi
+    fi
+}
+
+# libadwaita (GTK4) and GTK3 named colours. Works under GNOME and Hyprland.
+apply_gtk() {
+    for v in 4.0 3.0; do
+        mkdir -p "$CFG/gtk-$v"
+        {
+            printf '/* %s -- generated by star-wars-theme, do not edit. */\n' "$SW_NAME"
+            printf '@define-color %s %s;\n' \
+                accent_color "$SW_ACCENT" accent_bg_color "$SW_ACCENT" accent_fg_color "$SW_BACKGROUND" \
+                window_bg_color "$SW_BACKGROUND" window_fg_color "$SW_FOREGROUND" \
+                view_bg_color "$SW_DARK_BACKGROUND" view_fg_color "$SW_FOREGROUND" \
+                headerbar_bg_color "$SW_LIGHTER_BACKGROUND" headerbar_fg_color "$SW_FOREGROUND" \
+                headerbar_backdrop_color "$SW_BACKGROUND" \
+                sidebar_bg_color "$SW_DARK_BACKGROUND" sidebar_fg_color "$SW_FOREGROUND" \
+                card_bg_color "$SW_LIGHTER_BACKGROUND" card_fg_color "$SW_FOREGROUND" \
+                popover_bg_color "$SW_LIGHTER_BACKGROUND" popover_fg_color "$SW_FOREGROUND" \
+                dialog_bg_color "$SW_LIGHTER_BACKGROUND" dialog_fg_color "$SW_FOREGROUND" \
+                destructive_color "$SW_RED" destructive_bg_color "$SW_RED" \
+                success_color "$SW_GREEN" warning_color "$SW_YELLOW" error_color "$SW_RED"
+            if [ "$v" = 3.0 ]; then
+                printf '@define-color %s %s;\n' \
+                    theme_bg_color "$SW_BACKGROUND" theme_fg_color "$SW_FOREGROUND" \
+                    theme_base_color "$SW_DARK_BACKGROUND" theme_text_color "$SW_FOREGROUND" \
+                    theme_selected_bg_color "$SW_ACCENT" theme_selected_fg_color "$SW_BACKGROUND" \
+                    borders "$SW_MUTED"
+            fi
+        } >"$CFG/gtk-$v/star-wars.css"
+        ensure_line "$CFG/gtk-$v/gtk.css" "@import 'star-wars.css';" top
+    done
+}
+
+apply_gnome() {
+    have gsettings || return 0
+    gs() { gsettings set "$@" 2>/dev/null || true; }
+    gs org.gnome.desktop.interface color-scheme prefer-dark
+    # accent-color exists from GNOME 47 and takes only its own fixed names.
+    if [ -n "$SW_GNOME_ACCENT" ] && gsettings range org.gnome.desktop.interface accent-color >/dev/null 2>&1; then
+        gs org.gnome.desktop.interface accent-color "$SW_GNOME_ACCENT"
+    fi
+    if [ -n "$SW_ICONS" ] && { [ -d "/usr/share/icons/$SW_ICONS" ] || [ -d "$DATA/icons/$SW_ICONS" ]; }; then
+        gs org.gnome.desktop.interface icon-theme "$SW_ICONS"
+    fi
+}
+
+apply_hyprland() {
+    have hyprctl || [ -d "$CFG/hypr" ] || return 0
+    b1="rgba($SW_BORDER1)" b2="rgba($SW_BORDER2)"
+    if [ -f "$CFG/hypr/hyprland.lua" ]; then
+        cat >"$CFG/hypr/star-wars.lua" <<EOF
+-- $SW_NAME -- generated by star-wars-theme, do not edit.
+local active = { colors = { "$b1", "$b2" }, angle = $SW_BORDER_ANGLE }
+hl.config({
+  general = { col = { active_border = active } },
+  group = { col = { border_active = active } },
+})
+EOF
+        ensure_line "$CFG/hypr/hyprland.lua" 'pcall(dofile, os.getenv("HOME") .. "/.config/hypr/star-wars.lua")'
+    elif [ -f "$CFG/hypr/hyprland.conf" ]; then
+        cat >"$CFG/hypr/star-wars.conf" <<EOF
+# $SW_NAME -- generated by star-wars-theme, do not edit.
+general {
+    col.active_border = $b1 $b2 ${SW_BORDER_ANGLE}deg
+}
+group {
+    col.border_active = $b1 $b2 ${SW_BORDER_ANGLE}deg
+}
+EOF
+        ensure_line "$CFG/hypr/hyprland.conf" "source = $CFG/hypr/star-wars.conf"
+    fi
+    [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && hyprctl reload >/dev/null 2>&1 || true
+}
+
+# Named colours for a Waybar style.css that wants them (@accent, @base00...).
+apply_waybar() {
+    [ -d "$CFG/waybar" ] || return 0
+    {
+        printf '/* %s -- generated by star-wars-theme, do not edit. */\n' "$SW_NAME"
+        palette_pairs | while read -r k v; do printf '@define-color %s %s;\n' "$k" "$v"; done
+    } >"$CFG/waybar/star-wars.css"
+    ensure_line "$CFG/waybar/style.css" '@import "star-wars.css";' top
+    pkill -USR2 -x waybar 2>/dev/null || true
+}
+
+# name/value pairs of the palette, in both naming schemes.
+palette_pairs() {
+    for k in accent background dark_background darker_background lighter_background \
+        selection muted foreground dark_foreground light_foreground bright_foreground \
+        red orange yellow green cyan blue magenta brown \
+        bright_red bright_yellow bright_green bright_cyan bright_blue bright_magenta; do
+        eval "printf '%s %s\n' $k \"\$SW_$(echo $k | tr '[:lower:]' '[:upper:]')\""
+    done
+    set -- background lighter_background selection muted dark_foreground foreground \
+        light_foreground bright_foreground red orange yellow green cyan blue magenta brown \
+        dark_background darker_background bright_red bright_yellow bright_green \
+        bright_cyan bright_blue bright_magenta
+    for n in 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17; do
+        eval "printf '%s %s\n' base$n \"\$SW_$(echo "$1" | tr '[:lower:]' '[:upper:]')\""
+        shift
+    done
+}
+
+# One JSON file any shell can read and watch: Quickshell (FileView with
+# watchChanges), eww, AGS, scripts. Rewritten on every switch.
+write_state() {
+    mkdir -p "$STATE"
+    printf '%s\n' "${TINTY_SCHEME_ID:-$SW_NAME}" >"$STATE/current"
+    bg=$(readlink "$STATE/background" 2>/dev/null || true)
+    {
+        printf '{\n  "name": "%s",\n  "id": "%s",\n  "wallpaper": "%s"' "$SW_NAME" "${TINTY_SCHEME_ID:-}" "$bg"
+        palette_pairs | while read -r k v; do printf ',\n  "%s": "%s"' "$k" "$v"; done
+        printf '\n}\n'
+    } >"$STATE/colors.json.tmp" && mv -f "$STATE/colors.json.tmp" "$STATE/colors.json"
+}
+
+set_wallpaper() {
+    f=$1
+    [ -f "$f" ] || die "no wallpaper: $f"
+    mkdir -p "$STATE"
+    ln -sfn "$f" "$STATE/background"
+    if have gsettings && gsettings get org.gnome.desktop.background picture-uri >/dev/null 2>&1; then
+        gsettings set org.gnome.desktop.background picture-uri "file://$f" 2>/dev/null || true
+        gsettings set org.gnome.desktop.background picture-uri-dark "file://$f" 2>/dev/null || true
+        gsettings set org.gnome.desktop.background picture-options zoom 2>/dev/null || true
+    fi
+    if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+        if have awww && awww query >/dev/null 2>&1; then
+            awww img "$f" --transition-type grow >/dev/null 2>&1 || true
+        elif have swww && swww query >/dev/null 2>&1; then
+            swww img "$f" --transition-type grow >/dev/null 2>&1 || true
+        elif pgrep -x hyprpaper >/dev/null 2>&1; then
+            hyprctl hyprpaper reload ",$f" >/dev/null 2>&1 || true
+        elif pgrep -x swaybg >/dev/null 2>&1; then
+            pkill -x swaybg || true
+            (setsid swaybg -i "$f" -m fill >/dev/null 2>&1 &)
+        fi
+    fi
+    # colors.json carries the wallpaper path too.
+    [ -f "$STATE/colors.json" ] && sed -i "s|\"wallpaper\": \"[^\"]*\"|\"wallpaper\": \"$f\"|" "$STATE/colors.json"
+    log "wallpaper: ${f#"$THEMES"/}"
+}
+
+cmd_tinty_hook() {
+    slug="${TINTY_SCHEME_SLUG:-}"
+    [ -n "$slug" ] || die "tinty-hook is run by tinty (see ~/.config/tinted-theming/tinty/config.toml)"
+    case $slug in
+        star-wars-*)
+            # shellcheck disable=SC1090
+            . "$THEMES/${slug#star-wars-}/theme.env" ;;
+        *) palette_from_tinty ;;
+    esac
+
+    apply_terminals
+    apply_gtk
+    apply_gnome
+    apply_hyprland
+    apply_waybar
+    write_state
+
+    if [ -n "$SW_ID" ]; then
+        # Stay on the current wallpaper when it already belongs to this planet.
+        cur=$(readlink "$STATE/background" 2>/dev/null || true)
+        case $cur in
+            "$THEMES/$SW_ID"/backgrounds/*) [ -f "$cur" ] && set_wallpaper "$cur" ;;
+            *) set_wallpaper "$(ls "$THEMES/$SW_ID"/backgrounds/* | head -n 1)" ;;
+        esac
+    fi
+    log "theme: $SW_NAME"
+}
+
+case "${1:-help}" in
+    list) cmd_list ;;
+    set) shift; cmd_set "$@" ;;
+    bg) cmd_bg ;;
+    current) cmd_current ;;
+    tinty-hook) cmd_tinty_hook ;;
+    *) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' ;;
+esac

@@ -97,6 +97,20 @@ if [ -n "${ZSH_VERSION:-}" ]; then
     fi
 fi
 
+{{ if ne .machine "omarchy" -}}
+# ── Terminal colours (tinty) ────────────────────────────────────────────────
+# New shells take the palette of the last `star-wars-theme set` / `tinty
+# apply`. No-op until a theme has been applied (and on macOS, without tinty).
+case $- in
+    *i*)
+        _tinty_sh="${XDG_DATA_HOME:-$HOME/.local/share}/tinted-theming/tinty/tinted-shell-scripts-file.sh"
+        # shellcheck disable=SC1090
+        [ -f "$_tinty_sh" ] && . "$_tinty_sh"
+        unset _tinty_sh
+        ;;
+esac
+
+{{ end -}}
 # ── Prompt ──────────────────────────────────────────────────────────────────
 # Start starship unless this very shell already did (Omarchy's bash rc runs
 # `starship init bash` before this file). Checked by its precmd function --

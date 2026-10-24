@@ -1,0 +1,3 @@
+{{- $id := base (dir .chezmoi.targetFile) -}}
+{{- $bgs := glob (joinPath .chezmoi.sourceDir "dot_local/share/star-wars-themes" $id "backgrounds/*.jpg") -}}
+backgrounds/{{ base (first $bgs) }}

@@ -109,7 +109,114 @@ here.
 | `dot_config/tmux/tmux.conf.tmpl` | Omarchy's tmux base + herdr parity |
 | `dot_config/starship.toml` | prompt: full path + git detail, Nerd Font icons, ANSI colours so it follows the theme (also in nvim `:terminal`); legend: `prompt-help` |
 | `run_onchange_*` | idempotent, sudo-free bootstrap |
+| `.chezmoidata/star-wars.yaml` | Star Wars theme palettes, the one place to edit them |
+| `.chezmoitemplates/star-wars/` | renderers: Omarchy `colors.toml`, base24 scheme, `theme.env` |
+| `dot_local/share/star-wars-themes/` | wallpapers + per-planet stubs calling those renderers |
+| `dot_local/bin/executable_star-wars-theme` | `list` / `set` / `bg`, and the tinty desktop hook |
+| `dot_config/tinted-theming/tinty/config.toml.tmpl` | tinty items, only for tools installed on the machine |
 | `archive/mac-2026-08/` | the previous Mac snapshot, for reference |
+
+## Star Wars themes
+
+Five dark desktop themes -- **Tatooine, Hoth, Mustafar, Hyperspace,
+Dagobah** -- each a palette plus 3--5 wallpapers, made to move between
+machines. One command everywhere:
+
+```sh
+star-wars-theme list          # planets, * = current
+star-wars-theme set hoth      # switch
+star-wars-theme bg            # next wallpaper of the current planet
+```
+
+### Where things come from
+
+```
+.chezmoidata/star-wars.yaml ──► .chezmoitemplates/star-wars/*  (renderers)
+                                     │
+      ┌──────────────────────────────┼──────────────────────────────┐
+  Omarchy                        other Linux                       macOS
+  colors.toml + icons.theme      base24 scheme for tinty           nothing
+  in ~/.local/share/             + theme.env for the desktop hook  (Ghostty keeps
+  star-wars-themes/<planet>,                                        Kanagawa)
+  symlinked into
+  ~/.config/omarchy/themes
+```
+
+The palette uses Omarchy's `colors.toml` names; the 24 of them map one to
+one onto base24 (`base00` background ... `base17` bright magenta, see
+`.chezmoitemplates/star-wars/base24.yaml`). `accent`, the Hyprland border,
+the GNOME accent and the Yaru icon variant sit beside it in the same file.
+
+**Omarchy.** `star-wars-theme set` is `omarchy theme set star-wars-<planet>`
+and Omarchy themes everything itself. tinty is not installed.
+
+**Every other Linux (42 Ubuntu/GNOME, CachyOS/Hyprland, ...).** `chezmoi
+apply` installs tinty (pinned, checksum-verified, into `~/.local/bin`) and
+runs `tinty sync`. `star-wars-theme set` is `tinty apply
+base24-star-wars-<planet>`, which builds the tinted-theming templates for the
+custom scheme and then runs `star-wars-theme tinty-hook`:
+
+| Target | How |
+|---|---|
+| shell / current terminal | tinted-shell OSC colours; new shells via `42.sh` |
+| kitty, ghostty, foot, alacritty | file from tinted-terminal + one `include` line in their config (alacritty: printed hint if `alacritty.toml` already exists) |
+| Neovim | tinted-vim file, sourced by `lua/plugins/colorscheme.lua`, re-sourced on focus |
+| GTK4 / libadwaita, GTK3 | `~/.config/gtk-{4,3}.0/star-wars.css` + `@import` at the top of `gtk.css` (restart apps) |
+| GNOME | dark style, wallpaper, accent (GNOME 47+, nearest of its 9 presets), Yaru icon variant if installed |
+| Hyprland | border gradient in `~/.config/hypr/star-wars.{lua,conf}`, sourced from `hyprland.lua` / `hyprland.conf`, `hyprctl reload` |
+| wallpaper on Hyprland | awww/swww, hyprpaper or swaybg -- whichever runs |
+| Waybar | `@define-color` set in `~/.config/waybar/star-wars.css`, imported into `style.css`, reloaded |
+| Quickshell & co. | `~/.local/state/star-wars-theme/colors.json` (palette, base00-17, wallpaper) |
+
+Any other tinty scheme works the same way (`tinty apply base16-mocha`): the
+desktop follows its palette, only the wallpaper stays.
+
+On 42 Ubuntu this sits on top of the Kanagawa GNOME Terminal profile (see
+*Colours*): until `star-wars-theme set` is run, nothing changes there.
+
+Lines the hook adds to configs it does not own (`gtk.css`, `hyprland.*`,
+`style.css`, terminal configs) are marked `star-wars-theme` and added once.
+
+**Limits.** The GNOME Shell top bar keeps its own look (that needs a shell
+theme extension). Waybar and Quickshell only change if their style/config uses
+the generated colours -- the hook cannot know what a third-party config calls
+them. Quickshell example (any config):
+
+```qml
+import Quickshell
+import Quickshell.Io
+
+FileView {
+    path: Quickshell.env("HOME") + "/.local/state/star-wars-theme/colors.json"
+    watchChanges: true
+    onFileChanged: reload()
+    adapter: JsonAdapter {
+        id: sw
+        property string accent
+        property string background
+        property string foreground
+        property string wallpaper
+    }
+}
+```
+
+**42 quota.** Wallpapers take ~15 MB in `~/.local/share/star-wars-themes`;
+tinty's template checkouts (`~/.local/share/tinted-theming`) add about as
+much again. The terminal templates are cloned only when a supported terminal
+is installed.
+
+### Editing
+
+- **Colours:** edit `.chezmoidata/star-wars.yaml`, `chezmoi apply`, then
+  `star-wars-theme set <planet>` again.
+- **Wallpapers:** drop a file into
+  `dot_local/share/star-wars-themes/<planet>/backgrounds/` (they show in name
+  order; the first is the preview). Keep them 2560x1440 or larger.
+- **New planet:** a new key in `star-wars.yaml`, and a new directory copied
+  from an existing planet -- the stubs work out the planet from their own
+  path. Then copy the scheme stub in
+  `dot_local/share/tinted-theming/tinty/custom-schemes/base24/` and the
+  Omarchy symlink in `dot_config/omarchy/themes/`, renamed.
 
 ## Prompt (starship)
 

@@ -1,0 +1,45 @@
+# tinty -- base16/base24 themes for the shell, terminals and Neovim.
+# Managed by chezmoi -- edit dot_config/tinted-theming/tinty/config.toml.tmpl
+# in ~/git/configs. Not used on Omarchy (omarchy theme set does this there).
+#
+# The Star Wars schemes are custom schemes, rendered by chezmoi into
+# ~/.local/share/tinted-theming/tinty/custom-schemes/base24/ from
+# .chezmoidata/star-wars.yaml; tinty builds every item below for them on apply.
+#
+#   star-wars-theme set hoth        (= tinty apply base24-star-wars-hoth)
+#   tinty sync                      after editing this file
+shell = "sh -c '{}'"
+default-scheme = "base24-star-wars-hoth"
+
+# The desktop: GTK/GNOME, Hyprland, Waybar, Quickshell, wallpaper, and the
+# terminal configs from the tinted-terminal checkout below.
+hooks = ["{{ .chezmoi.homeDir }}/.local/bin/star-wars-theme tinty-hook"]
+
+# Colours of the terminal the command runs in (OSC sequences), so the switch
+# shows at once. New shells pick it up from ~/.config/shell/42.sh.
+[[items]]
+name = "tinted-shell"
+path = "https://github.com/tinted-theming/tinted-shell"
+themes-dir = "scripts"
+hook = ". \"$TINTY_THEME_FILE_PATH\""
+supported-systems = ["base16", "base24"]
+{{- if or (lookPath "kitty") (lookPath "ghostty") (lookPath "foot") (lookPath "alacritty") }}
+
+# One checkout for every terminal: tinty builds all of them into it, and
+# star-wars-theme copies out the ones that are installed. themes-dir only has
+# to name one of them for tinty to accept the item.
+[[items]]
+name = "tinted-terminal"
+path = "https://github.com/tinted-theming/tinted-terminal"
+themes-dir = "themes/kitty"
+supported-systems = ["base16", "base24"]
+{{- end }}
+{{- if lookPath "nvim" }}
+
+# Neovim sources the result (dot_config/nvim/lua/plugins/colorscheme.lua).
+[[items]]
+name = "tinted-vim"
+path = "https://github.com/tinted-theming/tinted-vim"
+themes-dir = "colors"
+supported-systems = ["base16", "base24"]
+{{- end }}

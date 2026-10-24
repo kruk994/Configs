@@ -1,0 +1,40 @@
+{{- if and (eq .chezmoi.os "linux") (ne .machine "omarchy") -}}
+#!/bin/sh
+# Install tinty (Star Wars themes, see README) into ~/.local/bin. Sudo-free, so
+# it works on the 42 machines too. Omarchy needs no tinty: `omarchy theme set`
+# does the same job there. On macOS: brew install tinty (not done here).
+#
+# Pinned release + checksum: bump both together. Release page:
+# https://github.com/tinted-theming/tinty/releases
+set -eu
+
+VERSION=v0.34.1
+case $(uname -m) in
+    x86_64) target=x86_64-unknown-linux-musl
+            sha=f5729a8ed9334008e0bcf5d13bc495db276ca9d1cb9cabbbb7a4deeb4d58660a ;;
+    aarch64) target=aarch64-unknown-linux-gnu
+            sha=e4da58e713b5a21f59433a950092d96967ffe269626cd880c32dd71c626990aa ;;
+    *) printf '  !! no tinty build for %s -- install it by hand\n' "$(uname -m)" >&2; exit 0 ;;
+esac
+
+bin="$HOME/.local/bin/tinty"
+if [ -x "$bin" ] && "$bin" --version 2>/dev/null | grep -qF "${VERSION#v}"; then
+    exit 0
+fi
+
+printf '  \033[36m::\033[0m installing tinty %s into ~/.local/bin\n' "$VERSION"
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+url="https://github.com/tinted-theming/tinty/releases/download/$VERSION/tinty-$target.tar.gz"
+if ! curl -fsSL "$url" -o "$tmp/tinty.tar.gz"; then
+    printf '  !! tinty download failed -- see README "Star Wars themes"\n' >&2
+    exit 0
+fi
+if ! printf '%s  %s\n' "$sha" "$tmp/tinty.tar.gz" | sha256sum -c - >/dev/null 2>&1; then
+    printf '  !! tinty checksum mismatch -- not installed\n' >&2
+    exit 0
+fi
+tar -xzf "$tmp/tinty.tar.gz" -C "$tmp" tinty
+mkdir -p "$HOME/.local/bin"
+install -m 755 "$tmp/tinty" "$bin"
+{{ end -}}

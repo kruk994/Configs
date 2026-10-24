@@ -1,0 +1,172 @@
+# Star Wars desktop themes -- the single source of truth.
+#
+# Every planet's palette lives here once. chezmoi renders it into:
+#   - an Omarchy theme (colors.toml, icons.theme)            on Omarchy
+#   - a base24 scheme for tinty (terminals, shell, Neovim)    everywhere else
+#   - theme.env for star-wars-theme (GNOME, Hyprland, Waybar, Quickshell)
+#
+# Keys under `colors` are Omarchy's colors.toml names; the base24 slot each one
+# fills is in .chezmoitemplates/star-wars/base24.yaml. Wallpapers are the files in
+# dot_local/share/star-wars-themes/<planet>/backgrounds/, shown in name order.
+#
+# gnomeAccent: one of GNOME 47+'s fixed accents (blue teal green yellow orange
+#   red pink purple slate) -- GNOME cannot take an arbitrary colour there.
+# icons: Yaru variant, used where it is installed (Omarchy, Ubuntu).
+# border: Hyprland active border gradient, RRGGBBAA stops + angle in degrees.
+starWars:
+  planets:
+    tatooine:
+      name: Tatooine
+      gnomeAccent: orange
+      icons: Yaru-yellow
+      border: { colors: ["f7c27aee", "e07b39ee"], angle: 45 }
+      colors:
+        accent: "#e8a24a"
+        selection: "#3a2a20"
+        muted: "#5a4436"
+        background: "#1c1512"
+        dark_background: "#161009"
+        darker_background: "#0f0b08"
+        lighter_background: "#2a1f19"
+        foreground: "#e6d3b3"
+        dark_foreground: "#8a7560"
+        light_foreground: "#efdfc4"
+        bright_foreground: "#f7ecd8"
+        red: "#d0573a"
+        yellow: "#e8b85a"
+        orange: "#e07b39"
+        green: "#a8a65a"
+        cyan: "#7fa8a0"
+        blue: "#6b8fb5"
+        magenta: "#b0688f"
+        brown: "#8a5a3b"
+        bright_red: "#e8704f"
+        bright_yellow: "#f5cd78"
+        bright_green: "#c2c070"
+        bright_cyan: "#9cc4bb"
+        bright_blue: "#8aaad0"
+        bright_magenta: "#c884a8"
+    hoth:
+      name: Hoth
+      gnomeAccent: blue
+      icons: Yaru-blue
+      border: { colors: ["8fd3ffee", "49e3c4ee"], angle: 45 }
+      colors:
+        accent: "#8fd3ff"
+        selection: "#1e3550"
+        muted: "#3a5470"
+        background: "#0e1620"
+        dark_background: "#0a1119"
+        darker_background: "#070c12"
+        lighter_background: "#16222f"
+        foreground: "#c9d8e8"
+        dark_foreground: "#6a819a"
+        light_foreground: "#dbe7f3"
+        bright_foreground: "#f0f7ff"
+        red: "#e0707a"
+        yellow: "#e6cf8a"
+        orange: "#e8a07a"
+        green: "#7fd1b0"
+        cyan: "#5fd4d8"
+        blue: "#6aa8e8"
+        magenta: "#a89cf0"
+        brown: "#8a7a6a"
+        bright_red: "#f08a92"
+        bright_yellow: "#f2e0a6"
+        bright_green: "#9be6c8"
+        bright_cyan: "#8ee8ea"
+        bright_blue: "#8fc2f5"
+        bright_magenta: "#c2b8ff"
+    mustafar:
+      name: Mustafar
+      gnomeAccent: red
+      icons: Yaru-red
+      border: { colors: ["ff5a1fee", "e8303aee"], angle: 45 }
+      colors:
+        accent: "#e8303a"
+        selection: "#3a1416"
+        muted: "#5a2a2a"
+        background: "#120a0b"
+        dark_background: "#0d0708"
+        darker_background: "#080405"
+        lighter_background: "#1e1213"
+        foreground: "#e3cfc8"
+        dark_foreground: "#8a6a64"
+        light_foreground: "#eddcd5"
+        bright_foreground: "#fff0ea"
+        red: "#e8303a"
+        yellow: "#f0a03a"
+        orange: "#f26a1f"
+        green: "#9aa860"
+        cyan: "#6fa8a0"
+        blue: "#7a86b8"
+        magenta: "#c4506e"
+        brown: "#7a3a22"
+        bright_red: "#ff5a5f"
+        bright_yellow: "#ffc060"
+        bright_green: "#b8c47a"
+        bright_cyan: "#8cc4bc"
+        bright_blue: "#98a4d4"
+        bright_magenta: "#e06c8a"
+    hyperspace:
+      name: Hyperspace
+      gnomeAccent: blue
+      icons: Yaru-blue
+      border: { colors: ["cfe4ffee", "5aa9ffee"], angle: 45 }
+      colors:
+        accent: "#5aa9ff"
+        selection: "#1a2a48"
+        muted: "#34466a"
+        background: "#0b0f17"
+        dark_background: "#080b12"
+        darker_background: "#05070c"
+        lighter_background: "#141b28"
+        foreground: "#c8d3e6"
+        dark_foreground: "#5f6f8e"
+        light_foreground: "#d6dff0"
+        bright_foreground: "#eef4ff"
+        red: "#ef6b73"
+        yellow: "#e8c56a"
+        orange: "#f0956a"
+        green: "#82d39a"
+        cyan: "#5fd0e8"
+        blue: "#5aa9ff"
+        magenta: "#a98bf5"
+        brown: "#7a6650"
+        bright_red: "#ff8a90"
+        bright_yellow: "#f5d88a"
+        bright_green: "#a0e8b4"
+        bright_cyan: "#8ae4f5"
+        bright_blue: "#8cc4ff"
+        bright_magenta: "#c4abff"
+    dagobah:
+      name: Dagobah
+      gnomeAccent: green
+      icons: Yaru-olive
+      border: { colors: ["a8d877ee", "4f7a3aee"], angle: 45 }
+      colors:
+        accent: "#8fbf5a"
+        selection: "#22301f"
+        muted: "#3d4f38"
+        background: "#10150f"
+        dark_background: "#0c100b"
+        darker_background: "#080b07"
+        lighter_background: "#1a2218"
+        foreground: "#cdd6c0"
+        dark_foreground: "#6f7f66"
+        light_foreground: "#dbe3cf"
+        bright_foreground: "#eef3e6"
+        red: "#d4685a"
+        yellow: "#d8c06a"
+        orange: "#d8955a"
+        green: "#8fbf5a"
+        cyan: "#6fb3a0"
+        blue: "#6f9fb8"
+        magenta: "#a88ab8"
+        brown: "#7a6040"
+        bright_red: "#e8806f"
+        bright_yellow: "#e8d48a"
+        bright_green: "#a8d877"
+        bright_cyan: "#8ccbb8"
+        bright_blue: "#8cb8d0"
+        bright_magenta: "#c0a4d0"

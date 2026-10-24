@@ -36,3 +36,24 @@ README.md
 # LazyVim writes to these itself (news checksums, plugin pins). Never manage them.
 .config/nvim/lazyvim.json
 .config/nvim/lazy-lock.json
+
+# ── Star Wars themes (see README) ──────────────────────────────────────────
+# Omarchy: the planets are Omarchy themes (symlinked into
+# ~/.config/omarchy/themes), tinty is not used. Other Linux: tinty + the
+# star-wars-theme hook, no Omarchy files. macOS: none of it (Ghostty keeps
+# its own palette).
+{{ if eq .machine "macos" -}}
+.local/share/star-wars-themes
+.local/bin/star-wars-theme
+.config/omarchy
+.config/tinted-theming
+.local/share/tinted-theming
+{{- else if eq .machine "omarchy" -}}
+.config/tinted-theming
+.local/share/tinted-theming
+{{- else -}}
+.config/omarchy
+.local/share/star-wars-themes/*/colors.toml
+.local/share/star-wars-themes/*/icons.theme
+.local/share/star-wars-themes/*/preview.jpg
+{{- end }}

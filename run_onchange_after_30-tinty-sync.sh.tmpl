@@ -1,0 +1,17 @@
+{{- if and (eq .chezmoi.os "linux") (ne .machine "omarchy") -}}
+#!/bin/sh
+# Clone/update tinty's template repos whenever its config changes.
+# config hash: {{ include "dot_config/tinted-theming/tinty/config.toml.tmpl" | sha256sum }}
+set -eu
+
+tinty="$HOME/.local/bin/tinty"
+command -v tinty >/dev/null 2>&1 && tinty=$(command -v tinty)
+[ -x "$tinty" ] || exit 0
+
+printf '  \033[36m::\033[0m tinty sync (template repos)\n'
+"$tinty" sync --quiet || printf '  !! tinty sync failed -- run it by hand\n' >&2
+
+if [ ! -f "${XDG_DATA_HOME:-$HOME/.local/share}/tinted-theming/tinty/current_scheme" ]; then
+    printf '  \033[36m::\033[0m pick a theme: star-wars-theme list / star-wars-theme set hoth\n'
+fi
+{{ end -}}
