@@ -188,6 +188,15 @@ Then Terminal → Settings → Profiles → Text → Font, or iTerm2 → Setting
 Profiles → Text → Font → *JetBrainsMono Nerd Font*. (The archived MartianMono
 Nerd Font in `archive/mac-2026-08/` works too.)
 
+Ghostty (the terminal used on the Air since 2026-10-07) gets its font, the
+Kanagawa palette and the Option-as-Alt settings from `dot_config/ghostty/config.tmpl`,
+so nothing needs picking by hand there.
+
+**One manual step chezmoi cannot do — herdr's prefix.** macOS takes ⌃Space for
+"Select the previous input source", so herdr never sees `ctrl+space`. Turn it
+off: System Settings → Keyboard → Keyboard Shortcuts… → Input Sources →
+untick *Select the previous input source*. Takes effect immediately.
+
 ## Colours (Kanagawa everywhere)
 
 `.chezmoidata/kanagawa.toml` holds the palette of the Omarchy desktop theme and
