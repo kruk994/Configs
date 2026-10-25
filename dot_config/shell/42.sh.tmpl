@@ -131,3 +131,17 @@ case $- in
         fi
         ;;
 esac
+
+# ── herdr: ssh exit without ?1049l ──────────────────────────────────────────
+# Omarchy's ssh() wrapper (default/bash/fns/ssh-reconnect) runs _ssh_disarm after
+# every ssh exit, which ends in ESC[?1049l (leave the alternate screen). Real
+# terminals ignore that when the alternate screen is off; herdr moves the cursor
+# and the next prompt overwrites earlier lines (herdrdev/herdr#3602, open in
+# 0.9.5). Inside herdr, keep every reset except that one. Drop this block once
+# #3602 is fixed. Cost: a remote app that dies on the alternate screen leaves
+# the pane there -- `reset` gets out.
+if [ -n "${HERDR_ENV:-}" ] && typeset -f _ssh_disarm >/dev/null 2>&1; then
+    _ssh_disarm() {
+        printf '\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[?1004l\033[?25h'
+    }
+fi
