@@ -1,0 +1,32 @@
+#!/bin/sh
+# ssh-askpass-yk -- askpass for OpenSSH that shows YubiKey touch requests as a
+# desktop notification instead of a dialog with a text field.
+# Managed by chezmoi -- edit dot_local/bin/executable_ssh-askpass-yk in ~/git/configs.
+#
+# OpenSSH runs the askpass program for two different things:
+#   - a real question (PIN, passphrase, yes/no) -- it needs the answer on stdout;
+#   - a notice "Confirm user presence for key ..." (FIDO touch), with
+#     SSH_ASKPASS_PROMPT=none -- nothing is read back, ssh kills the program
+#     once the key has been touched.
+# lxqt-openssh-askpass shows a text field even for the notice, which invites
+# typing the PIN into a box that goes nowhere. Here the notice becomes a
+# notification and only real questions get a dialog.
+#
+# Use: SSH_ASKPASS=$HOME/.local/bin/ssh-askpass-yk (environment.d, for ssh-agent).
+set -u
+
+if [ "${SSH_ASKPASS_PROMPT:-}" = none ]; then
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send -a ssh -t 15000 "Dotknij YubiKeya" "${1:-}"
+    fi
+    exit 0
+fi
+
+for p in lxqt-openssh-askpass ksshaskpass x11-ssh-askpass; do
+    if command -v "$p" >/dev/null 2>&1; then
+        exec "$p" "$@"
+    fi
+done
+[ -x /usr/lib/ssh/ssh-askpass ] && exec /usr/lib/ssh/ssh-askpass "$@"
+printf 'ssh-askpass-yk: no askpass dialog program installed\n' >&2
+exit 1
