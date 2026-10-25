@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# kopiuj -- pick a fenced code block from a Markdown file and copy it.
+# Managed by chezmoi -- edit dot_local/bin/executable_kopiuj in ~/git/configs.
+#
+#   kopiuj <file.md>        fzf list of the file's code blocks, with preview
+#   kopiuj <file.md> <n>    copy block n straight away (numbering as in the list)
+#
+# In the list: Enter copies and keeps the list open (and re-reads the file, so
+# edits made meanwhile show up), Ctrl-R re-reads the file, Esc quits.
+#
+# The block is copied exactly, without the fences, the fence's indentation or
+# the trailing newline -- so pasting a block into bash never runs it before
+# Enter (bracketed paste keeps multi-line blocks together too).
+#
+# Clipboard: wl-copy (Wayland), pbcopy (macOS), xclip (X11). Over SSH, or when
+# none of those exists, an OSC 52 escape asks the local terminal to set its
+# clipboard (Ghostty allows it by default).
+set -eu
+
+have() { command -v "$1" >/dev/null 2>&1; }
+die() { printf '  !! %s\n' "$*" >&2; exit 1; }
+
+# Extract every block of $1 into a fresh directory under $2 and print one
+# fzf line per block: <dir>/<n> TAB <label> TAB <language>.
+list() {
+    gen=$(mktemp -d "$2/g.XXXXXX")
+    awk -v dir="$gen" '
+        function short(s, n) { return length(s) > n ? substr(s, 1, n - 1) "…" : s }
+        /^[ \t]*```/ {
+            if (!inb) {
+                inb = 1; n++; f = sprintf("%s/%03d", dir, n)
+                start = NR; first = ""
+                ind = match($0, /[^ \t]/) - 1
+                lang = $0; sub(/^[ \t]*```+/, "", lang); sub(/[ \t].*$/, "", lang)
+                printf "" > f
+            } else {
+                inb = 0; close(f)
+                printf "%s\t%3d  %-28s %s\t%s\n", f, n, short(head, 28), short(first, 60), lang
+            }
+            next
+        }
+        inb {
+            line = $0
+            if (ind > 0 && substr(line, 1, ind) ~ /^[ \t]*$/) line = substr(line, ind + 1)
+            print line > f
+            if (first == "" && line ~ /[^ \t]/) { first = line; sub(/^[ \t]+/, "", first) }
+            next
+        }
+        /^#+[ \t]/ { head = $0; sub(/^#+[ \t]+/, "", head) }
+    ' "$1"
+}
+
+copy() {
+    text=$(cat "$1")
+    if [ -z "${SSH_CONNECTION:-}" ] && [ -n "${WAYLAND_DISPLAY:-}" ] && have wl-copy; then
+        printf '%s' "$text" | wl-copy
+    elif [ -z "${SSH_CONNECTION:-}" ] && have pbcopy; then
+        printf '%s' "$text" | pbcopy
+    elif [ -z "${SSH_CONNECTION:-}" ] && [ -n "${DISPLAY:-}" ] && have xclip; then
+        printf '%s' "$text" | xclip -selection clipboard
+    else
+        printf '\033]52;c;%s\a' "$(printf '%s' "$text" | base64 | tr -d '\n')" >/dev/tty
+    fi
+}
+
+case "${1:-}" in
+    --list) list "$2" "$3"; exit 0 ;;
+    --copy) copy "$2"; exit 0 ;;
+    ''|-h|--help) sed -n '2,17s/^# \{0,1\}//p' "$0"; exit 0 ;;
+esac
+
+file=$1
+[ -f "$file" ] || die "no such file: $file"
+self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/kopiuj.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT
+
+if [ $# -ge 2 ]; then
+    hit=$(list "$file" "$tmp" | awk -F'\t' -v n="$2" 'NR == n { print $1 }')
+    [ -n "$hit" ] || die "no block $2 in $file"
+    copy "$hit"
+    printf '  \033[36m::\033[0m copied block %s\n' "$2"
+    exit 0
+fi
+
+have fzf || die "fzf is missing"
+if have bat; then
+    preview='bat --color=always --style=plain --paging=never -l {3} {1} 2>/dev/null || cat {1}'
+else
+    preview='cat {1}'
+fi
+q() { printf '%q' "$1"; }
+reload="reload($(q "$self") --list $(q "$file") $(q "$tmp"))"
+
+list "$file" "$tmp" | fzf \
+    --delimiter '\t' --with-nth 2 --no-sort --layout reverse \
+    --header "$(basename "$file")  ·  Enter: copy  ·  Ctrl-R: reload  ·  Esc: quit" \
+    --preview "$preview" --preview-window 'down,60%,wrap' \
+    --bind "enter:execute-silent($(q "$self") --copy {1})+$reload+change-header(copied ✓  ·  Enter: copy  ·  Ctrl-R: reload  ·  Esc: quit)" \
+    --bind "ctrl-r:$reload" || true
