@@ -14,9 +14,10 @@ cursor-style = block
 cursor-style-blink = false
 shell-integration-features = no-cursor,ssh-env
 
-# Option behaves as Alt. Without this, herdr's alt+enter / alt+1..9 / alt+arrows
-# never arrive: macOS turns Option+key into special characters (alt+1 -> "¡").
-macos-option-as-alt = true
+# Left Option behaves as Alt, right Option types Polish letters (Polish Pro:
+# right Option+a -> "ą"). With `true` both Options sent Alt and ą/ę/ś never
+# arrived. herdr's alt+enter / alt+1..9 / alt+arrows: use the LEFT Option.
+macos-option-as-alt = left
 
 # Ghostty's macOS defaults map Option+Left/Right to word motion (ESC b / ESC f).
 # herdr binds alt+left/right to previous/next tab, so pass the real keys through.
