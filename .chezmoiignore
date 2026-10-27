@@ -38,6 +38,8 @@ README.md
 {{ if ne .machine "42" -}}
 .local/bin/kampus-start
 .local/bin/kampus-koniec
+.local/share/applications/ghostty.desktop
+.config/autostart/keyboard-pl.desktop
 {{ end -}}
 
 # LazyVim writes to these itself (news checksums, plugin pins). Never manage them.

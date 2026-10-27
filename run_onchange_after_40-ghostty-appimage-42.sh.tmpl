@@ -1,0 +1,41 @@
+#!/bin/sh
+# 42 machines: make the Ghostty AppImage from ~/bin a normal app --
+# ~/.local/bin/ghostty (so the star-wars-theme hook and the GNOME launcher find
+# it) and its own icon in the user icon theme.
+#
+# chezmoi re-runs this whenever the AppImage list below changes, i.e. after
+# dropping a new Ghostty-*.AppImage into ~/bin and running `chezmoi apply`.
+# machine = {{ .machine }}
+{{- if eq .machine "42" }}
+{{-   range (glob (joinPath .chezmoi.homeDir "bin" "Ghostty-*.AppImage")) }}
+# appimage: {{ . }}
+{{-   end }}
+set -eu
+
+A=$(ls -1 "$HOME"/bin/Ghostty-*.AppImage 2>/dev/null | sort -V | tail -n 1)
+[ -n "$A" ] || exit 0
+chmod +x "$A"
+mkdir -p "$HOME/.local/bin"
+ln -sfn "$A" "$HOME/.local/bin/ghostty"
+
+ICONS=$HOME/.local/share/icons/hicolor/256x256/apps
+T=$(mktemp -d "$HOME/.cache/ghostty-icon.XXXXXX" 2>/dev/null || mktemp -d)
+# Only the icons, not the whole image (the 42 home quota is small). The name
+# inside differs between AppImage builds, so fall back to .DirIcon.
+for pat in '*.png' .DirIcon; do
+    (cd "$T" && "$A" --appimage-extract "$pat" >/dev/null 2>&1) || true
+done
+ICON=$(find "$T" -name 'com.mitchellh.ghostty*.png' -size +1k -printf '%s %p\n' 2>/dev/null \
+    | sort -n | tail -n 1 | cut -d' ' -f2-)
+if [ -z "$ICON" ] && [ -e "$T/squashfs-root/.DirIcon" ]; then
+    ICON=$(readlink -f "$T/squashfs-root/.DirIcon")
+fi
+if [ -n "$ICON" ]; then
+    mkdir -p "$ICONS"
+    cp -f "$ICON" "$ICONS/com.mitchellh.ghostty.png"
+    gtk-update-icon-cache -q -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+    printf '  \033[36m::\033[0m ghostty: %s, icon installed\n' "$(basename "$A")"
+fi
+rm -rf "${T:?}"
+update-desktop-database -q "$HOME/.local/share/applications" 2>/dev/null || true
+{{- end }}

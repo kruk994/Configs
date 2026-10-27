@@ -1,0 +1,9 @@
+[Desktop Entry]
+# 42 machines only (see .chezmoiignore). The user's GNOME input source is
+# already Polish (gsettings), but the lab session keeps the US layout, so set
+# Polish (programmer's: US + AltGr letters) at every login. X11 only.
+Type=Application
+Name=Polish keyboard
+Exec=setxkbmap pl
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

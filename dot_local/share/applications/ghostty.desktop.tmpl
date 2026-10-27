@@ -1,0 +1,12 @@
+[Desktop Entry]
+# 42 machines only (see .chezmoiignore): Ghostty runs there as an AppImage,
+# linked to ~/.local/bin/ghostty and its icon extracted by
+# run_onchange_after_40-ghostty-appimage-42.sh.
+Type=Application
+Name=Ghostty
+Comment=Terminal (OSC 52 clipboard for herdr)
+Exec={{ .chezmoi.homeDir }}/.local/bin/ghostty
+Icon=com.mitchellh.ghostty
+Terminal=false
+Categories=System;TerminalEmulator;
+StartupWMClass=com.mitchellh.ghostty
