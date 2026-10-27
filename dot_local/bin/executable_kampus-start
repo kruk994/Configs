@@ -11,7 +11,8 @@
 #   2. key handles from the plugged-in YubiKey (`ssh-keygen -K`, PIN once):
 #      _rk_homelab logs in (PIN + touch), _rk_git signs git pushes (touch)
 #   3. a private ssh-agent holding only the git handle, on a fixed socket,
-#      forgotten after 10 h even if kampus-koniec is never run
+#      forgotten after 10 h even if kampus-koniec is never run; touch requests
+#      show up as a desktop notification (ssh-askpass-yk)
 #   4. ssh with its own config file (-F): the campus ~/.ssh/config and the
 #      GNOME agent are never consulted. GNOME's agent auto-loads _rk_homelab,
 #      cannot ask for its PIN and fails with "agent refused operation".
@@ -69,7 +70,9 @@ export SSH_AUTH_SOCK=$SOCK
 rc=0; ssh-add -l >/dev/null 2>&1 || rc=$?
 if [ "$rc" -eq 2 ]; then
     rm -f "$SOCK"
-    ssh-agent -a "$SOCK" -t 10h >/dev/null
+    # Touch requests from the devbox (git push) as a desktop notification;
+    # ssh-askpass-yk comes from chezmoi, DISPLAY from the X11 session.
+    SSH_ASKPASS=$BIN/ssh-askpass-yk ssh-agent -a "$SOCK" -t 10h >/dev/null
 fi
 if ! ssh-add -L 2>/dev/null | grep -qF "$(cut -d' ' -f2 "$GITKEY.pub")"; then
     ssh-add -q "$GITKEY"
