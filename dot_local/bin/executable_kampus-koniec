@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# kampus-koniec -- leave a 42 lab machine without anything usable behind.
+# Managed by chezmoi (42 machines only) -- edit dot_local/bin/executable_kampus-koniec
+# in ~/git/configs. Counterpart of kampus-start.
+#
+#   kampus-koniec       close devbox sessions, stop the agent, delete key handles
+#                       and the Cloudflare Access login
+#
+# Kept: cloudflared, the ssh config/known_hosts written by kampus-start, Ghostty.
+# None of them grants access on its own.
+set -eu
+
+S=$HOME/.ssh
+SOCK=$S/agent-42.sock
+
+say() { printf '  -> %s\n' "$*"; }
+
+# Open ssh sessions keep the forwarded agent reachable from the devbox.
+if pkill -u "$USER" -f "ssh -F $S/devbox-cf.conf" 2>/dev/null; then
+    say "closed devbox sessions"
+fi
+
+if [ -S "$SOCK" ]; then
+    SSH_AUTH_SOCK=$SOCK ssh-add -D >/dev/null 2>&1 || true
+fi
+if pkill -u "$USER" -f "ssh-agent -a $SOCK" 2>/dev/null; then
+    say "stopped the agent"
+fi
+rm -f "$SOCK"
+
+rm -f "$S"/id_ed25519_sk_rk_* "$S"/id_kampus "$S"/id_kampus.pub
+rm -rf "$S"/rk.*
+say "deleted key handles"
+
+# cloudflared keeps the Access login (valid 12 h) as ~/.cloudflared/*-token.
+rm -f "$HOME"/.cloudflared/*-token
+say "deleted the Cloudflare Access login"
+
+if [ -z "$(find "$S" -maxdepth 1 -name 'id_ed25519_sk_rk_*')" ]; then
+    say "done -- nothing left that opens the devbox"
+fi

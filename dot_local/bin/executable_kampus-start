@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# kampus-start -- connect from a 42 lab machine to the devbox, YubiKey only.
+# Managed by chezmoi (42 machines only) -- edit dot_local/bin/executable_kampus-start
+# in ~/git/configs. Undo everything with kampus-koniec before leaving.
+#
+#   kampus-start        set up what is missing, then ssh into the devbox
+#
+# Safe to re-run (e.g. after a dropped connection): every step checks first.
+#
+#   1. cloudflared in ~/.local/bin (downloaded when missing, no root needed)
+#   2. key handles from the plugged-in YubiKey (`ssh-keygen -K`, PIN once):
+#      _rk_homelab logs in (PIN + touch), _rk_git signs git pushes (touch)
+#   3. a private ssh-agent holding only the git handle, on a fixed socket,
+#      forgotten after 10 h even if kampus-koniec is never run
+#   4. ssh with its own config file (-F): the campus ~/.ssh/config and the
+#      GNOME agent are never consulted. GNOME's agent auto-loads _rk_homelab,
+#      cannot ask for its PIN and fails with "agent refused operation".
+#
+# The tunnel hostname sits behind Cloudflare Access (one-time code by e-mail);
+# the devbox host key is pinned below, so there is no trust-on-first-use.
+set -eu
+
+H=ssh-devbox.ravsnest.cloud
+HOSTKEY='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICEpK9OMqSy/sglzD6UBsE0sGlXO2I6cAnJhIOI6EPbZ'
+S=$HOME/.ssh
+SOCK=$S/agent-42.sock
+CONF=$S/devbox-cf.conf
+KH=$S/known_hosts_devbox
+LOGIN=$S/id_ed25519_sk_rk_homelab
+GITKEY=$S/id_ed25519_sk_rk_git
+BIN=$HOME/.local/bin
+
+say() { printf '  -> %s\n' "$*"; }
+die() { printf '  !! %s\n' "$*" >&2; exit 1; }
+
+mkdir -p "$S" "$BIN"
+chmod 700 "$S"
+
+# 1. cloudflared
+CF=$(command -v cloudflared || true)
+[ -n "$CF" ] || { [ -x "$HOME/bin/cloudflared" ] && CF=$HOME/bin/cloudflared; } || true
+if [ -z "$CF" ]; then
+    say "downloading cloudflared"
+    U=https://github.com/cloudflare/cloudflared/releases/latest/download
+    curl -fsSLo "$BIN/cloudflared" "$U/cloudflared-linux-amd64"
+    chmod +x "$BIN/cloudflared"
+    CF=$BIN/cloudflared
+fi
+
+# 2. key handles
+if [ ! -f "$LOGIN" ] || [ ! -f "$GITKEY" ]; then
+    ssh -Q key | grep -q '^sk-ssh-ed25519' || die "this ssh has no FIDO support"
+    say "fetching key handles from the YubiKey (PIN)"
+    T=$(mktemp -d "$S/rk.XXXXXX")
+    (cd "$T" && ssh-keygen -K) || { rm -rf "$T"; die "ssh-keygen -K failed (YubiKey plugged in?)"; }
+    for k in homelab git; do
+        f=$T/id_ed25519_sk_rk_$k
+        [ -f "$f" ] || { rm -rf "$T"; die "no ssh:$k key on this YubiKey"; }
+        install -m 600 "$f" "$S/"
+        install -m 644 "$f.pub" "$S/"
+    done
+    rm -rf "$T"
+fi
+
+# 3. private agent
+export SSH_AUTH_SOCK=$SOCK
+rc=0; ssh-add -l >/dev/null 2>&1 || rc=$?
+if [ "$rc" -eq 2 ]; then
+    rm -f "$SOCK"
+    ssh-agent -a "$SOCK" -t 10h >/dev/null
+fi
+if ! ssh-add -L 2>/dev/null | grep -qF "$(cut -d' ' -f2 "$GITKEY.pub")"; then
+    ssh-add -q "$GITKEY"
+fi
+
+# 4. connect
+printf '%s %s\n' devbox "$HOSTKEY" > "$KH"
+cat > "$CONF" <<EOF
+Host devbox
+    HostName $H
+    User kruk994
+    HostKeyAlias devbox
+    UserKnownHostsFile $KH
+    StrictHostKeyChecking yes
+    IdentityFile $LOGIN
+    IdentitiesOnly yes
+    IdentityAgent $SOCK
+    ForwardAgent $SOCK
+    ProxyCommand $CF access ssh --hostname %h
+    ServerAliveInterval 30
+EOF
+say "ssh devbox (Access code in the browser on first login, then PIN + touch)"
+exec ssh -F "$CONF" devbox "$@"
