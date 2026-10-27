@@ -50,9 +50,11 @@ fi
 # 2. key handles
 if [ ! -f "$LOGIN" ] || [ ! -f "$GITKEY" ]; then
     ssh -Q key | grep -q '^sk-ssh-ed25519' || die "this ssh has no FIDO support"
+    # No passphrase on the handles: they are useless without the YubiKey itself
+    # (plus its PIN for logging in), and kampus-koniec deletes them anyway.
     say "fetching key handles from the YubiKey (PIN)"
     T=$(mktemp -d "$S/rk.XXXXXX")
-    (cd "$T" && ssh-keygen -K) || { rm -rf "$T"; die "ssh-keygen -K failed (YubiKey plugged in?)"; }
+    (cd "$T" && ssh-keygen -K -N "") || { rm -rf "$T"; die "ssh-keygen -K failed (YubiKey plugged in?)"; }
     for k in homelab git; do
         f=$T/id_ed25519_sk_rk_$k
         [ -f "$f" ] || { rm -rf "$T"; die "no ssh:$k key on this YubiKey"; }
