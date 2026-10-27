@@ -43,3 +43,16 @@
 [includeIf "hasconfig:remote.*.url:**vogsphere**"]
 	path = ~/.config/git/42.inc
 {{- end }}
+
+{{ if or (eq .machine "macos") (eq .machine "42") -}}
+# ── Submodules follow the superproject (42_CC keeps each project as one) ────
+# pull/checkout/switch also update submodules; push refuses to publish a
+# superproject commit whose submodule commit is not pushed yet. Only where the
+# YubiKey is plugged in (Mac, 42 lab): on the devbox the submodules live on
+# GitHub, so every pull would need a forwarded YubiKey, and Claude's bot key
+# there has no GitHub access at all.
+[submodule]
+	recurse = true
+[push]
+	recurseSubmodules = check
+{{- end }}
