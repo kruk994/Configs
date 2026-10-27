@@ -61,3 +61,23 @@ vim.api.nvim_create_autocmd("FileType", {
     end)
   end,
 })
+
+-- ══════════════════════════════════════════════════════════════════════════
+--  Python : flake8 layout aids
+--
+--  Indentation needs nothing here: Vim's python ftplugin already sets 4-space
+--  soft tabs (PEP 8), and that buffer-local setting wins over LazyVim's global
+--  2-space default. Only the visual aids flake8 cares about are added.
+--  Linting itself lives in lua/plugins/lang-python.lua.
+-- ══════════════════════════════════════════════════════════════════════════
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("flake8_layout", { clear = true }),
+  pattern = "python",
+  callback = function()
+    -- flake8 E501: at most 79 characters, so column 80 is the first illegal one.
+    vim.opt_local.colorcolumn = "80"
+    -- W291/W293: trailing whitespace and whitespace-only lines.
+    vim.opt_local.list = true
+    vim.opt_local.listchars = { tab = "▸ ", trail = "·", nbsp = "␣" }
+  end,
+})
