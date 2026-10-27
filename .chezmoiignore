@@ -26,10 +26,11 @@ README.md
 .config/nvim/lua/plugins/colorscheme.lua
 {{ end -}}
 
-# ── Ghostty: only macOS gets it from here ──────────────────────────────────
-# Omarchy owns ~/.config/ghostty/config (theme include, GTK options); the 42
-# lab machines have no Ghostty.
-{{ if ne .machine "macos" -}}
+# ── Ghostty: macOS and the 42 machines get it from here ────────────────────
+# Omarchy owns ~/.config/ghostty/config (theme include, GTK options). The 42
+# lab machines run Ghostty as an AppImage from ~/bin (OSC 52 clipboard for
+# herdr, which GNOME Terminal lacks).
+{{ if not (or (eq .machine "macos") (eq .machine "42")) -}}
 .config/ghostty
 {{ end -}}
 

@@ -1,11 +1,12 @@
-# Ghostty on macOS only (see .chezmoiignore). On Omarchy this file belongs to
-# Omarchy -- it pulls in the current theme -- and is never applied from here.
+# Ghostty on macOS and the 42 machines (see .chezmoiignore). On Omarchy this
+# file belongs to Omarchy -- it pulls in the current theme -- and is never
+# applied from here. The macos-* options below are ignored on Linux.
 #
 # Mirrors the Omarchy desktop config where it matters for herdr and Claude Code.
 
 font-family = "JetBrainsMono Nerd Font"
 font-style = Regular
-font-size = 14
+font-size = {{ if eq .machine "macos" }}14{{ else }}12{{ end }}
 window-padding-x = 14
 window-padding-y = 14
 confirm-close-surface = false
@@ -40,3 +41,11 @@ selection-foreground = {{ .kanagawa.selection_fg }}
 {{ range $i, $c := .kanagawa.ansi -}}
 palette = {{ $i }}={{ $c }}
 {{ end -}}
+
+{{- if ne .machine "macos" }}
+
+# star-wars-theme set <planet> drops the tinty palette here (the hook looks
+# for exactly this line, so it never edits this chezmoi-managed file). Loaded
+# last, it overrides Kanagawa; "?" = fine when the file does not exist yet.
+config-file = ?star-wars-theme
+{{- end }}
