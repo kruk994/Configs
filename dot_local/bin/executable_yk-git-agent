@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# yk-git-agent -- make sure the YubiKey git key is in the ssh-agent.
+# Managed by chezmoi (Omarchy laptop only) -- edit dot_local/bin/executable_yk-git-agent
+# in ~/git/configs.
+#
+# Run by ssh itself: ~/.ssh/config has a `Match ... exec` line (private_dot_ssh/
+# modify_private_config) that calls this before every connection to the devbox,
+# Forgejo or GitHub. So the key is back after a reboot or an agent restart
+# without anyone remembering homelab runbook devbox 4.9.5.
+#
+# Adding the handle of an ed25519-sk key without verify-required needs no touch;
+# touch comes only when a push signs. Destination constraints as in 4.9.5:
+# the devbox may use the key only for Forgejo and GitHub.
+#
+# Does nothing when the key is already loaded.
+
+ssh-add -l 2>/dev/null | grep -q yk-git-glowny && exit 0
+
+D=192.168.1.111
+G="[git.ravsnest.cloud]:222"
+ssh-add -h "$D" -h "$G" -h github.com -h "$D>$G" -h "$D>github.com" ~/.ssh/id_ykgit_main

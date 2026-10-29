@@ -42,6 +42,14 @@ README.md
 .config/autostart/keyboard-pl.desktop
 {{ end -}}
 
+# ── YubiKey git key in the agent: only the Omarchy laptop ─────────────────
+# macOS loads the key from ~/.zshrc (Homebrew agent), the 42 machines from
+# kampus-start, the devbox gets it forwarded. ~/.ssh is otherwise unmanaged.
+{{ if ne .machine "omarchy" -}}
+.local/bin/yk-git-agent
+.ssh
+{{ end -}}
+
 # LazyVim writes to these itself (news checksums, plugin pins). Never manage them.
 .config/nvim/lazyvim.json
 .config/nvim/lazy-lock.json

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# modify_ script for ~/.ssh/config (Omarchy laptop only, see .chezmoiignore).
+# chezmoi passes the current file on stdin and writes back what this prints.
+# The rest of ~/.ssh/config stays hand-edited: this only makes sure the line
+# that runs yk-git-agent is at the top (`; false` keeps the Match block from
+# applying anything, the exec is only there for its side effect).
+
+line='Match originalhost devbox,forgejo,github.com exec "~/.local/bin/yk-git-agent >/dev/null 2>&1; false"'
+current=$(cat)
+
+if grep -q 'yk-git-agent' <<<"$current"; then
+  printf '%s\n' "$current"
+else
+  printf '# Git key into the agent before devbox/Forgejo/GitHub (chezmoi: yk-git-agent)\n%s\n\n' "$line"
+  if [ -n "$current" ]; then printf '%s\n' "$current"; fi
+fi
