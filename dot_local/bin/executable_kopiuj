@@ -1,100 +1,335 @@
-#!/usr/bin/env bash
-# kopiuj -- pick a fenced code block from a Markdown file and copy it.
-# Managed by chezmoi -- edit dot_local/bin/executable_kopiuj in ~/git/configs.
-#
-#   kopiuj <file.md>        fzf list of the file's code blocks, with preview
-#   kopiuj <file.md> <n>    copy block n straight away (numbering as in the list)
-#
-# In the list: Enter copies and keeps the list open (and re-reads the file, so
-# edits made meanwhile show up), Ctrl-R re-reads the file, Esc quits.
-#
-# The block is copied exactly, without the fences, the fence's indentation or
-# the trailing newline -- so pasting a block into bash never runs it before
-# Enter (bracketed paste keeps multi-line blocks together too).
-#
-# Clipboard: wl-copy (Wayland), pbcopy (macOS), xclip (X11). Over SSH, or when
-# none of those exists, an OSC 52 escape asks the local terminal to set its
-# clipboard (Ghostty allows it by default).
-set -eu
+#!/usr/bin/env python3
+"""kopiuj / cglow -- read Markdown and copy its fenced code blocks verbatim.
+Managed by chezmoi -- edit dot_local/bin/executable_kopiuj in ~/git/configs.
 
-have() { command -v "$1" >/dev/null 2>&1; }
-die() { printf '  !! %s\n' "$*" >&2; exit 1; }
+  kopiuj FILE.md       fzf list of the code blocks (searches their whole text)
+  kopiuj FILE.md N     copy block N straight away
+  cglow FILE.md        view in glow, every block boxed and labelled #N;
+                       press c, type N, Enter to copy block N
+  cglow FILE.md N      same as kopiuj FILE.md N
 
-# Extract every block of $1 into a fresh directory under $2 and print one
-# fzf line per block: <dir>/<n> TAB <label> TAB <language>.
-list() {
-    gen=$(mktemp -d "$2/g.XXXXXX")
-    awk -v dir="$gen" '
-        function short(s, n) { return length(s) > n ? substr(s, 1, n - 1) "…" : s }
-        /^[ \t]*```/ {
-            if (!inb) {
-                inb = 1; n++; f = sprintf("%s/%03d", dir, n)
-                start = NR; first = ""
-                ind = match($0, /[^ \t]/) - 1
-                lang = $0; sub(/^[ \t]*```+/, "", lang); sub(/[ \t].*$/, "", lang)
-                printf "" > f
-            } else {
-                inb = 0; close(f)
-                printf "%s\t%3d  %-28s %s\t%s\n", f, n, short(head, 28), short(first, 60), lang
-            }
-            next
-        }
-        inb {
-            line = $0
-            if (ind > 0 && substr(line, 1, ind) ~ /^[ \t]*$/) line = substr(line, ind + 1)
-            print line > f
-            if (first == "" && line ~ /[^ \t]/) { first = line; sub(/^[ \t]+/, "", first) }
-            next
-        }
-        /^#+[ \t]/ { head = $0; sub(/^#+[ \t]+/, "", head) }
-    ' "$1"
-}
+In the list: Enter copies and keeps the list open (and re-reads the file, so
+edits made meanwhile show up), Ctrl-R re-reads the file, Esc quits.
 
-copy() {
-    text=$(cat "$1")
-    if [ -z "${SSH_CONNECTION:-}" ] && [ -n "${WAYLAND_DISPLAY:-}" ] && have wl-copy; then
-        printf '%s' "$text" | wl-copy
-    elif [ -z "${SSH_CONNECTION:-}" ] && have pbcopy; then
-        printf '%s' "$text" | pbcopy
-    elif [ -z "${SSH_CONNECTION:-}" ] && [ -n "${DISPLAY:-}" ] && have xclip; then
-        printf '%s' "$text" | xclip -selection clipboard
-    else
-        printf '\033]52;c;%s\a' "$(printf '%s' "$text" | base64 | tr -d '\n')" >/dev/tty
-    fi
-}
+A block is copied exactly: without the fences, the fence's indentation or the
+trailing newline, so pasting it into bash never runs it before Enter.
 
-case "${1:-}" in
-    --list) list "$2" "$3"; exit 0 ;;
-    --copy) copy "$2"; exit 0 ;;
-    ''|-h|--help) sed -n '2,17s/^# \{0,1\}//p' "$0"; exit 0 ;;
-esac
+Clipboard: wl-copy (Wayland), pbcopy (macOS), xclip (X11). Over SSH, or when
+none of those exists, an OSC 52 escape asks the local terminal to set its
+clipboard (Ghostty and foot allow it).
+"""
+import base64
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+import unicodedata
 
-file=$1
-[ -f "$file" ] || die "no such file: $file"
-self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
-tmp=$(mktemp -d "${TMPDIR:-/tmp}/kopiuj.XXXXXX")
-trap 'rm -rf "$tmp"' EXIT
+FENCE = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
+HEADING = re.compile(r"^ {0,3}#{1,6}[ \t]+(.*?)[ \t#]*$")
+SELF = os.path.realpath(__file__)
 
-if [ $# -ge 2 ]; then
-    hit=$(list "$file" "$tmp" | awk -F'\t' -v n="$2" 'NR == n { print $1 }')
-    [ -n "$hit" ] || die "no block $2 in $file"
-    copy "$hit"
-    printf '  \033[36m::\033[0m copied block %s\n' "$2"
-    exit 0
-fi
 
-have fzf || die "fzf is missing"
-if have bat; then
-    preview='bat --color=always --style=plain --paging=never -l {3} {1} 2>/dev/null || cat {1}'
-else
-    preview='cat {1}'
-fi
-q() { printf '%q' "$1"; }
-reload="reload($(q "$self") --list $(q "$file") $(q "$tmp"))"
+def blocks(text):
+    out, cur, head = [], None, ""
+    for no, line in enumerate(text.splitlines(keepends=True)):
+        m = FENCE.match(line.rstrip("\n"))
+        if cur is None:
+            if m and not (m.group(2)[0] == "`" and "`" in m.group(3)):
+                cur = {"start": no, "indent": len(m.group(1)), "fence": m.group(2),
+                       "lang": m.group(3).strip().split(" ")[0], "head": head,
+                       "lines": []}
+            elif HEADING.match(line):
+                head = HEADING.match(line).group(1)
+        elif m and m.group(2)[0] == cur["fence"][0] \
+                and len(m.group(2)) >= len(cur["fence"]) and not m.group(3).strip():
+            cur["end"] = no
+            out.append(cur)
+            cur = None
+        else:
+            # strip up to the opening fence's indent, as CommonMark does
+            n = len(line) - len(line.lstrip(" "))
+            cur["lines"].append(line[min(n, cur["indent"]):])
+    if cur is not None:  # unclosed fence runs to end of document
+        cur["end"] = no
+        out.append(cur)
+    for b in out:
+        b["code"] = "".join(b["lines"]).rstrip("\n")
+    return out
 
-list "$file" "$tmp" | fzf \
-    --delimiter '\t' --with-nth 2 --no-sort --layout reverse \
-    --header "$(basename "$file")  ·  Enter: copy  ·  Ctrl-R: reload  ·  Esc: quit" \
-    --preview "$preview" --preview-window 'down,60%,wrap' \
-    --bind "enter:execute-silent($(q "$self") --copy {1})+$reload+change-header(copied ✓  ·  Enter: copy  ·  Ctrl-R: reload  ·  Esc: quit)" \
-    --bind "ctrl-r:$reload" || true
+
+# ── messages ────────────────────────────────────────────────────────────────
+
+def say(msg):
+    # glow and less start commands with stderr discarded or redirected, so
+    # inside the viewer write straight to the terminal or the message is lost
+    if os.environ.get("KOPIUJ_FILE"):
+        try:
+            with open("/dev/tty", "w") as tty:
+                print(msg, file=tty)
+            return
+        except OSError:
+            pass
+    print(msg, file=sys.stderr)
+
+
+def fail(msg):
+    say(f"✗ Nic nie skopiowano: {msg}")
+    sys.exit(1)
+
+
+def need(tool, why):
+    if not shutil.which(tool):
+        sys.exit(f"✗ Brak programu {tool} ({why}). Zainstaluj go: "
+                 f"pacman/apt/brew install {tool}")
+
+
+# ── clipboard ───────────────────────────────────────────────────────────────
+
+def copy(code):
+    local = not os.environ.get("SSH_CONNECTION")
+    for ok, cmd in ((os.environ.get("WAYLAND_DISPLAY"), ["wl-copy", "--"]),
+                    (True, ["pbcopy"]),
+                    (os.environ.get("DISPLAY"), ["xclip", "-selection", "clipboard"])):
+        if local and ok and shutil.which(cmd[0]):
+            subprocess.run(cmd, input=code.encode(), check=True)
+            return
+    with open("/dev/tty", "w") as tty:
+        tty.write(f"\033]52;c;{base64.b64encode(code.encode()).decode()}\a")
+
+
+def load(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return blocks(f.read())
+    except OSError as e:
+        fail(f"nie mogę otworzyć {path} ({e.strerror})")
+
+
+def copy_block(path, n):
+    bs = load(path)
+    if not bs:
+        fail("w pliku nie ma bloków kodu")
+    if not 1 <= n <= len(bs):
+        fail(f"nie ma bloku #{n} (bloki: #1–#{len(bs)})")
+    b = bs[n - 1]
+    copy(b["code"])
+    k = len(b["code"].splitlines())
+    say(f"✓ Skopiowano blok #{n} ({b['lang'] or 'plain'}, linie: {k})")
+
+
+# ── fzf picker ──────────────────────────────────────────────────────────────
+
+def rows(path):
+    out = []
+    for i, b in enumerate(load(path), 1):
+        head = b["head"] if len(b["head"]) <= 28 else b["head"][:27] + "…"
+        # whole block on one row, so fzf matches any line of it
+        flat = " ⏎ ".join(l.strip() for l in b["lines"] if l.strip())
+        out.append(f"{i}\t{i:3}  {head:<28} {flat}")
+    return "\n".join(out)
+
+
+def show(path, n):
+    b = load(path)[n - 1]
+    try:
+        subprocess.run(["bat", "--color=always", "--style=plain",
+                        "--paging=never", "-l", b["lang"] or "txt"],
+                       input=b["code"].encode(), check=True,
+                       stderr=subprocess.DEVNULL)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print(b["code"])
+
+
+def pick(path):
+    bs = load(path)
+    if not bs:
+        fail("w pliku nie ma bloków kodu")
+    if len(bs) == 1:
+        return copy_block(path, 1)
+    need("fzf", "lista bloków")
+    me, f = shlex.quote(SELF), shlex.quote(path)
+    keys = "Enter: kopiuj  ·  Ctrl-R: odśwież  ·  Esc: wyjdź"
+    reload = f"reload({me} --rows {f})"
+    subprocess.run(
+        # sorted by match: the whole block text is searched, so a fuzzy
+        # query also hits long blocks weakly; the best match must come first
+        ["fzf", "--delimiter=\t", "--with-nth=2..", "--layout=reverse",
+         "--header", f"{os.path.basename(path)}  ·  {keys}",
+         "--preview", f"{me} --show {{1}} {f}", "--preview-window=down,60%,wrap",
+         "--bind", f"enter:execute-silent({me} --copy {{1}} {f})+{reload}"
+                   f"+change-header(skopiowano ✓  ·  {keys})",
+         "--bind", f"ctrl-r:{reload}"],
+        input=rows(path).encode())
+
+
+# ── glow viewer ─────────────────────────────────────────────────────────────
+
+TOP, END = "@@kopiuj-top@@", "@@kopiuj-end@@"  # markers, removed after rendering
+BG = "\x1b[48;5;236m"  # same gray as glow's inline code, so #N reads as a tab
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def cells(s):
+    plain = ANSI.sub("", s)
+    return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in plain)
+
+
+def expandtabs(s):
+    # str.expandtabs would count escape codes as columns
+    out, col = [], 0
+    for part in re.split(f"({ANSI.pattern})", s):
+        if ANSI.fullmatch(part):
+            out.append(part)
+            continue
+        for c in part:
+            if c == "\t":
+                out.append(" " * (8 - col % 8))
+                col += 8 - col % 8
+            else:
+                out.append(c)
+                col += 1
+    return "".join(out)
+
+
+def paint(code, indent):
+    """Give rendered code lines a background, padded into one rectangle."""
+    code = [expandtabs(l) for l in code]
+    while code and not ANSI.sub("", code[0]).strip():
+        code.pop(0)
+    while code and not ANSI.sub("", code[-1]).strip():
+        code.pop()
+    body = [l[indent:] if l.startswith(" " * indent) else l for l in code]
+    width = max(map(cells, body), default=0) + 2
+    out = []
+    for l in [""] + body + [""]:  # one row of padding above and below
+        # a reset inside the line would drop the background, so re-apply it
+        l = re.sub(r"\x1b\[0?m", lambda m: m.group(0) + BG, l)
+        out.append(" " * indent + BG + l + " " * (width - cells(l)) + "\x1b[0m")
+    return out
+
+
+def boxed(rendered):
+    out, code = [], None
+    for line in rendered.split("\n"):
+        plain = ANSI.sub("", line)
+        if TOP in plain:
+            out.append(line.replace(TOP, ""))
+            code = []
+        elif END in plain and code is not None:
+            out.extend(paint(code, len(plain) - len(plain.lstrip(" "))))
+            code = None
+        elif code is not None:
+            code.append(line)
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
+def labelled(text):
+    """The Markdown with a #N label above and an end marker below each block."""
+    lines = text.splitlines(keepends=True)
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    for i, b in reversed(list(enumerate(blocks(text), 1))):
+        indent = " " * b["indent"]
+        name = f"`#{i}` *{b['lang']}*" if b["lang"] else f"`#{i}`"
+        label = f"{name} {TOP}"
+        lines.insert(b["end"] + 1, f"\n{indent}{END}\n\n")
+        s = b["start"]
+        if b["indent"]:
+            # inside a list glow joins paragraphs onto one line, so hang the
+            # label off the previous line with a hard break instead
+            while s > 0 and not lines[s - 1].strip():
+                del lines[s - 1]
+                s -= 1
+            if s > 0:
+                lines[s - 1] = lines[s - 1].rstrip("\n") + "  \n"
+            lines.insert(s, f"{indent}{label}\n")
+        else:
+            # blank line first, so the label never merges into a paragraph
+            lines.insert(s, f"\n{label}\n")
+    return "".join(lines)
+
+
+def less_keys(tmp):
+    """less options binding c to a shell prompt prefilled with "cglow "."""
+    src = os.path.join(tmp, "lesskey")
+    with open(src, "w") as f:
+        f.write("#command\nc shell cglow\\ \n")
+    v = re.search(r"less (\d+)", subprocess.run(
+        ["less", "--version"], capture_output=True, text=True).stdout)
+    if v and int(v.group(1)) >= 582:
+        return [f"--lesskey-src={src}"]
+    # older less (macOS) only reads a binary file compiled by lesskey
+    out = os.path.join(tmp, "lesskey.bin")
+    if shutil.which("lesskey") and subprocess.run(
+            ["lesskey", "-o", out, src], capture_output=True).returncode == 0:
+        return ["-k", out]
+    say("(ta wersja less nie obsługuje skrótu c -- kopiuj z promptu: cglow PLIK N)")
+    return []
+
+
+def view(path):
+    need("glow", "podgląd Markdowna")
+    need("less", "przewijanie podglądu")
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+    except OSError as e:
+        sys.exit(f"✗ Nie mogę otworzyć {path} ({e.strerror})")
+    style = os.path.expanduser("~/.config/glow/copyfriendly.json")
+    with tempfile.TemporaryDirectory(prefix="kopiuj-") as tmp:
+        md = os.path.join(tmp, os.path.basename(path))
+        with open(md, "w", encoding="utf-8") as f:
+            f.write(labelled(text))
+        # no terminal at all for glow: otherwise it queries the terminal's
+        # colors and the replies end up in less as keystrokes
+        r = subprocess.run(
+            ["glow", "-w", "0", "-s", style if os.path.isfile(style) else "dark", md],
+            stdin=subprocess.DEVNULL, capture_output=True,
+            env=dict(os.environ, CLICOLOR_FORCE="1"))
+        if r.returncode:
+            sys.exit(r.stderr.decode() or "✗ glow nie zadziałał")
+        env = dict(os.environ, KOPIUJ_FILE=os.path.abspath(path))
+        subprocess.run(["less", "-R", *less_keys(tmp)],
+                       input=boxed(r.stdout.decode()).encode(), env=env)
+
+
+# ── command line ────────────────────────────────────────────────────────────
+
+def usage():
+    sys.exit(__doc__.split("\n\n")[1])
+
+
+def main(args):
+    # internal entry points used by fzf
+    if len(args) == 3 and args[0] in ("--show", "--copy") and args[1].isdigit():
+        return (show if args[0] == "--show" else copy_block)(args[2], int(args[1]))
+    if len(args) == 2 and args[0] == "--rows":
+        return print(rows(args[1]))
+
+    viewed = os.environ.get("KOPIUJ_FILE")  # set only inside the viewer
+    if viewed and not (args and os.path.isfile(args[0])):
+        # typed at the viewer's "c" prompt: expect exactly one number
+        if len(args) != 1 or not args[0].isdigit():
+            fail(f"„{' '.join(args)}” to nie numer bloku" if args
+                 else "nie podano numeru")
+        return copy_block(viewed, int(args[0]))
+
+    if not args or args[0] in ("-h", "--help"):
+        usage()
+    if len(args) == 2 and args[1].isdigit():
+        return copy_block(args[0], int(args[1]))
+    if len(args) == 1 and os.path.basename(sys.argv[0]) == "cglow":
+        return view(args[0])
+    if len(args) == 1:
+        return pick(args[0])
+    usage()
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

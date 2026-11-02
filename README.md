@@ -112,8 +112,8 @@ here.
 | `.chezmoidata/star-wars.yaml` | Star Wars theme palettes, the one place to edit them |
 | `.chezmoitemplates/star-wars/` | renderers: Omarchy `colors.toml`, base24 scheme, `theme.env` |
 | `dot_local/share/star-wars-themes/` | wallpapers + per-planet stubs calling those renderers |
-| `dot_local/bin/executable_mdcp`, `symlink_cglow` | Markdown code blocks (Omarchy): `cglow plik.md` = glow view with each block boxed and labelled `#N`, `c N Enter` copies it; `cglow plik.md N` copies from the prompt |
-| `dot_config/private_glow/` | glow: copy-friendly style (no margins), no mouse capture |
+| `dot_local/bin/executable_kopiuj`, `symlink_cglow` | Markdown code blocks: `kopiuj plik.md` = fzf list (searches the blocks' text), `cglow plik.md` = glow view with each block boxed and labelled `#N`, `c N Enter` copies it; `kopiuj`/`cglow plik.md N` copies from the prompt. Clipboard: wl-copy / pbcopy / xclip / OSC 52 over SSH |
+| `dot_config/private_glow/` | glow: copy-friendly style (no margins), no mouse capture (Linux path; macOS glow reads `~/Library/Preferences/glow`, cglow uses the style either way) |
 | `dot_local/bin/executable_star-wars-theme` | `list` / `set` / `bg`, and the tinty desktop hook |
 | `dot_config/tinted-theming/tinty/config.toml.tmpl` | tinty items, only for tools installed on the machine |
 | `archive/mac-2026-08/` | the previous Mac snapshot, for reference |
