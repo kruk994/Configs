@@ -50,6 +50,15 @@ README.md
 .ssh
 {{ end -}}
 
+# ── glow + mdcp/cglow (Markdown code blocks): only the Omarchy laptop ──────
+# mdcp copies with wl-copy and the glow style is tuned for Omarchy's foot.
+# kopiuj is the cross-platform block copier for the other machines.
+{{ if ne .machine "omarchy" -}}
+.config/glow
+.local/bin/mdcp
+.local/bin/cglow
+{{ end -}}
+
 # LazyVim writes to these itself (news checksums, plugin pins). Never manage them.
 .config/nvim/lazyvim.json
 .config/nvim/lazy-lock.json

@@ -1,0 +1,13 @@
+# style name or JSON path (default "auto")
+# copyfriendly.json = glamour "dark" with document/code_block margin 0,
+# so selected code has no extra leading indentation
+style: "{{ .chezmoi.homeDir }}/.config/glow/copyfriendly.json"
+# mouse support (TUI-mode only); off so terminal-native selection works
+mouse: false
+# use pager to display markdown
+pager: true
+# word-wrap at width; NOTE: glow treats 0 here as "terminal width, max 120",
+# real no-wrap needs the -w 0 flag (alias glow="glow -w 0")
+width: 0
+# show all files, including hidden and ignored.
+all: false

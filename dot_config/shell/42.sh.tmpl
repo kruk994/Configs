@@ -26,6 +26,9 @@ alias norm='norminette'
 # ── Everyday ────────────────────────────────────────────────────────────────
 alias ll='ls -lA'
 alias cl='clear'
+# glow never wraps: its config treats width 0 as "terminal width, max 120",
+# which splits long code lines. Only the -w 0 flag really turns wrapping off.
+alias glow='glow -w 0'
 
 # mkdir + cd in one step.
 mkcd() {
