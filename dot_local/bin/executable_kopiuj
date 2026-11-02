@@ -8,6 +8,10 @@ Managed by chezmoi -- edit dot_local/bin/executable_kopiuj in ~/git/configs.
                        press c, type N, Enter to copy block N
   cglow FILE.md N      same as kopiuj FILE.md N
 
+On Omarchy the viewer takes its colors from the current theme
+(~/.local/state/omarchy/current/theme/colors.toml, the palette nvim uses too),
+so it follows every theme switch; elsewhere it uses copyfriendly.json as is.
+
 In the list: Enter copies and keeps the list open (and re-reads the file, so
 edits made meanwhile show up), Ctrl-R re-reads the file, Esc quits.
 
@@ -19,6 +23,7 @@ none of those exists, an OSC 52 escape asks the local terminal to set its
 clipboard (Ghostty and foot allow it).
 """
 import base64
+import json
 import os
 import re
 import shlex
@@ -169,8 +174,103 @@ def pick(path):
 # ── glow viewer ─────────────────────────────────────────────────────────────
 
 TOP, END = "@@kopiuj-top@@", "@@kopiuj-end@@"  # markers, removed after rendering
-BG = "\x1b[48;5;236m"  # same gray as glow's inline code, so #N reads as a tab
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
+BASE_STYLE = os.path.expanduser("~/.config/glow/copyfriendly.json")
+THEME = os.path.expanduser("~/.local/state/omarchy/current/theme/colors.toml")
+
+
+def theme_colors():
+    """The current Omarchy theme's palette (the one nvim and foot use), or {}."""
+    try:
+        with open(THEME, encoding="utf-8") as f:
+            return dict(re.findall(r'^(\w+)\s*=\s*"(#[0-9a-fA-F]{6})"', f.read(), re.M))
+    except OSError:
+        return {}
+
+
+def themed(base, c):
+    """Recolor the glamour style with palette c, keeping its layout."""
+    fg = c.get("foreground", "#c0c0c0")
+    acc = c.get("accent", c.get("red", fg))
+    box = c.get("lighter_background", c.get("selection", "#303030"))
+    dim = c.get("dark_foreground", fg)
+    g = lambda k, alt: c.get(k, c.get(alt, fg))  # noqa: E731
+    base["document"]["color"] = fg
+    base["heading"].update(color=acc, bold=True)
+    base["h1"].update(color=c.get("background", "#000000"), background_color=acc)
+    base["h2"]["color"] = acc
+    base["h3"]["color"] = c.get("bright_foreground", fg)
+    for h in ("h4", "h5"):
+        base[h]["color"] = fg
+    base["h6"]["color"] = dim
+    base["code"].update(color=acc, background_color=box)
+    base["link"]["color"] = g("blue", "cyan")
+    base["link_text"]["color"] = g("cyan", "blue")
+    base["block_quote"]["color"] = dim
+    base["hr"]["color"] = c.get("muted", dim)
+    chroma = base["code_block"]["chroma"]
+    chroma.pop("background", None)  # the box behind the code is ours
+    for keys, color in (
+            (("text", "name", "name_other", "punctuation"), fg),
+            (("keyword", "keyword_reserved"), g("magenta", "red")),
+            (("keyword_namespace", "name_tag", "name_exception", "generic_deleted"),
+             g("red", "magenta")),
+            (("keyword_type", "name_class", "name_attribute"), g("yellow", "orange")),
+            (("literal", "literal_number", "name_constant", "name_decorator",
+              "comment_preproc"), g("orange", "yellow")),
+            (("literal_string", "literal_date", "generic_inserted"), g("green", "cyan")),
+            (("operator", "name_builtin", "literal_string_escape"), g("cyan", "blue")),
+            (("name_function", "generic_subheading"), g("blue", "cyan"))):
+        for k in keys:
+            chroma[k] = {"color": color}
+    chroma["comment"] = {"color": dim, "italic": True}
+    chroma["error"] = {"color": c.get("bright_foreground", fg),
+                       "background_color": g("red", "magenta")}
+    return box
+
+
+def xterm256(hexcolor):
+    """xterm-256 indexes glow may round a #rrggbb color to: the nearest one
+    overall and the nearest in the color cube (glow skips the gray ramp)."""
+    rgb = [int(hexcolor[i:i + 2], 16) for i in (1, 3, 5)]
+    steps = (0, 95, 135, 175, 215, 255)
+    cube = [(16 + 36 * r + 6 * g + b, (steps[r], steps[g], steps[b]))
+            for r in range(6) for g in range(6) for b in range(6)]
+    grays = [(232 + i, (8 + 10 * i,) * 3) for i in range(24)]
+    near = lambda t: sum((x - y) ** 2 for x, y in zip(t[1], rgb))  # noqa: E731
+    return {min(cube, key=near)[0], min(cube + grays, key=near)[0]}
+
+
+def exact(chroma):
+    """{"38;5;N": "38;2;r;g;b"} undoing glow's 256-color rounding of chroma colors."""
+    out = {}
+    for tok in chroma.values():
+        h = tok.get("color", "")
+        if re.fullmatch(r"#[0-9a-fA-F]{6}", h):
+            r, g, b = (int(h[i:i + 2], 16) for i in (1, 3, 5))
+            for n in xterm256(h):
+                out.setdefault(f"38;5;{n}", f"38;2;{r};{g};{b}")
+    return out
+
+
+def style(tmp):
+    """(glamour style for glow -s, background escape for the code boxes,
+    256-color fixups for code)"""
+    gray = ("dark", "\x1b[48;5;236m", {})  # 236 = glow's inline-code gray
+    try:
+        with open(BASE_STYLE, encoding="utf-8") as f:
+            base = json.load(f)
+    except (OSError, ValueError):
+        return gray
+    c = theme_colors()
+    if not c:
+        return BASE_STYLE, gray[1], {}
+    box = themed(base, c)
+    path = os.path.join(tmp, "style.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(base, f)
+    r, g, b = (int(box[i:i + 2], 16) for i in (1, 3, 5))
+    return path, f"\x1b[48;2;{r};{g};{b}m", exact(base["code_block"]["chroma"])
 
 
 def cells(s):
@@ -195,9 +295,11 @@ def expandtabs(s):
     return "".join(out)
 
 
-def paint(code, indent):
+def paint(code, indent, bg, fix):
     """Give rendered code lines a background, padded into one rectangle."""
-    code = [expandtabs(l) for l in code]
+    # glow rounds code colors to the 256 palette; put the theme's exact ones back
+    code = [re.sub(r"(?<=\x1b\[)38;5;\d+(?=m)", lambda m: fix.get(m.group(0), m.group(0)),
+                   expandtabs(l)) for l in code]
     while code and not ANSI.sub("", code[0]).strip():
         code.pop(0)
     while code and not ANSI.sub("", code[-1]).strip():
@@ -207,12 +309,12 @@ def paint(code, indent):
     out = []
     for l in [""] + body + [""]:  # one row of padding above and below
         # a reset inside the line would drop the background, so re-apply it
-        l = re.sub(r"\x1b\[0?m", lambda m: m.group(0) + BG, l)
-        out.append(" " * indent + BG + l + " " * (width - cells(l)) + "\x1b[0m")
+        l = re.sub(r"\x1b\[0?m", lambda m: m.group(0) + bg, l)
+        out.append(" " * indent + bg + l + " " * (width - cells(l)) + "\x1b[0m")
     return out
 
 
-def boxed(rendered):
+def boxed(rendered, bg, fix):
     out, code = [], None
     for line in rendered.split("\n"):
         plain = ANSI.sub("", line)
@@ -220,7 +322,7 @@ def boxed(rendered):
             out.append(line.replace(TOP, ""))
             code = []
         elif END in plain and code is not None:
-            out.extend(paint(code, len(plain) - len(plain.lstrip(" "))))
+            out.extend(paint(code, len(plain) - len(plain.lstrip(" ")), bg, fix))
             code = None
         elif code is not None:
             code.append(line)
@@ -281,22 +383,22 @@ def view(path):
             text = f.read()
     except OSError as e:
         sys.exit(f"✗ Nie mogę otworzyć {path} ({e.strerror})")
-    style = os.path.expanduser("~/.config/glow/copyfriendly.json")
     with tempfile.TemporaryDirectory(prefix="kopiuj-") as tmp:
+        sty, bg, fix = style(tmp)
         md = os.path.join(tmp, os.path.basename(path))
         with open(md, "w", encoding="utf-8") as f:
             f.write(labelled(text))
         # no terminal at all for glow: otherwise it queries the terminal's
         # colors and the replies end up in less as keystrokes
         r = subprocess.run(
-            ["glow", "-w", "0", "-s", style if os.path.isfile(style) else "dark", md],
+            ["glow", "-w", "0", "-s", sty, md],
             stdin=subprocess.DEVNULL, capture_output=True,
-            env=dict(os.environ, CLICOLOR_FORCE="1"))
+            env=dict(os.environ, CLICOLOR_FORCE="1", COLORTERM="truecolor"))
         if r.returncode:
             sys.exit(r.stderr.decode() or "✗ glow nie zadziałał")
         env = dict(os.environ, KOPIUJ_FILE=os.path.abspath(path))
         subprocess.run(["less", "-R", *less_keys(tmp)],
-                       input=boxed(r.stdout.decode()).encode(), env=env)
+                       input=boxed(r.stdout.decode(), bg, fix).encode(), env=env)
 
 
 # ── command line ────────────────────────────────────────────────────────────
